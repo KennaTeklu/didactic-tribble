@@ -43,7 +43,15 @@
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         .mobile-nav { display: none; }
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        /* Info icon tooltip */
+.info-icon { position: relative; cursor: pointer; margin-left: 8px; }
+.info-icon i { color: var(--text-dim); }
+.info-icon:hover .info-tooltip { display: block; }
+.info-tooltip { display: none; position: absolute; top: 100%; left: 0; background: var(--panel-light); border: 1px solid var(--border); padding: 8px; border-radius: 4px; z-index: 1000; white-space: nowrap; }
+.skip-next-btn { background: var(--accent); color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; }
+/* Modal */
         .dialog { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; max-width: 700px; width: 90%; max-height: 85vh; overflow: auto; }
+        .step-title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
         .dialog-header { display: flex; justify-content: space-between; padding: 16px; border-bottom: 1px solid var(--border); }
         .dialog-body { padding: 20px; }
         .wizard-progress { display: flex; margin-bottom: 20px; }
@@ -64,6 +72,18 @@
         .choice-btn.selected { border-color: var(--accent); background: var(--accent); color: white; }
         .choice-btn.correct { background: var(--success); }
         .choice-btn.wrong { background: var(--danger); }
+        /* Dashboard stats */
+        .stats-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+        .stat { flex: 1; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px; text-align: center; }
+        .stat-value { font-size: 32px; font-weight: bold; color: var(--accent); }
+        .stat-label { font-size: 14px; color: var(--text-dim); margin-top: 8px; }
+
+        /* Editor textarea */
+        #textEditor { font-family: monospace; }
+
+        /* Settings select */
+        #themeSelect { background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 6px; border-radius: 4px; }
+
         @media (max-width: 768px) { .sidebar { display: none; } .mobile-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--panel); border-top: 1px solid var(--border); justify-content: space-around; padding: 8px; } .content { padding-bottom: 60px; } }
     </style>
 </head>
@@ -83,6 +103,8 @@
             <button class="tool-btn" onclick="goTo('library')"><i class="fas fa-folder"></i> Library</button>
             <button class="tool-btn" onclick="goTo('processing')"><i class="fas fa-cogs"></i> Processing</button>
             <button class="tool-btn" onclick="goTo('automation')"><i class="fas fa-bolt"></i> Automation</button>
+            <button class="tool-btn" onclick="goTo('editors')"><i class="fas fa-edit"></i> Editors</button>
+            <button class="tool-btn" onclick="goTo('settings')"><i class="fas fa-cog"></i> Settings</button>
             <button class="tool-btn" onclick="goTo('roadmap')"><i class="fas fa-map"></i> Roadmap</button>
             <div class="search-box">
                 <i class="fas fa-search"></i>
@@ -95,7 +117,9 @@
                 <div class="tree-item" data-page="dashboard" onclick="goTo('dashboard')"><i class="fas fa-home"></i><span>Dashboard</span></div>
                 <div class="tree-item" data-page="library" onclick="goTo('library')"><i class="fas fa-folder"></i><span>Library</span></div>
                 <div class="tree-item" data-page="processing" onclick="goTo('processing')"><i class="fas fa-cogs"></i><span>Processing</span></div>
+                <div class="tree-item" data-page="editors" onclick="goTo('editors')"><i class="fas fa-edit"></i><span>Editors</span></div>
                 <div class="tree-item" data-page="automation" onclick="goTo('automation')"><i class="fas fa-bolt"></i><span>Automation</span></div>
+                <div class="tree-item" data-page="settings" onclick="goTo('settings')"><i class="fas fa-cog"></i><span>Settings</span></div>
                 <div class="tree-item" data-page="roadmap" onclick="goTo('roadmap')"><i class="fas fa-map"></i><span>Roadmap</span></div>
                 <div class="tree-item" data-page="help" onclick="goTo('help')"><i class="fas fa-question-circle"></i><span>Help</span></div>
             </div>
@@ -107,6 +131,7 @@
             <button onclick="goTo('library')"><i class="fas fa-folder"></i></button>
             <button onclick="goTo('processing')"><i class="fas fa-cogs"></i></button>
             <button onclick="openWizard()"><i class="fas fa-plus"></i></button>
+            <button onclick="goTo('editors')"><i class="fas fa-edit"></i></button>
             <button onclick="goTo('settings')"><i class="fas fa-cog"></i></button>
         </div>
     </div>
@@ -140,6 +165,18 @@
 
     <div id="flashOverlay" style="position:fixed; inset:0; pointer-events:none; opacity:0; background:#28a745; z-index:9999; transition:opacity 0.2s;"></div>
 
+<!-- Welcome Modal -->
+<div id="welcomeModal" class="modal-backdrop" style="display:none;">
+    <div class="dialog" style="max-width:500px; text-align:center;">
+        <div class="dialog-body" style="padding:2rem;">
+            <h2 style="margin-bottom:1rem;">Welcome to PrintMS!</h2>
+            <p style="margin-bottom:1.5rem;">Your all‑in‑one tool to upload documents, generate quizzes, lessons, and cheatsheets, then save them as PDFs.</p>
+            <p style="margin-bottom:1.5rem;">Use the <strong>New Wizard</strong> button or press <kbd>Ctrl+K</kbd> to open the command palette.</p>
+            <button class="btn primary" onclick="closeWelcome()">Get Started</button>
+        </div>
+    </div>
+</div>
+
     <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
@@ -170,6 +207,30 @@
         const esc = s => s.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
         const flash = color => { const f=document.getElementById('flashOverlay'); f.style.background=color; f.style.opacity='0.9'; setTimeout(()=>f.style.opacity='0',400); };
         const toast = msg => { const d=document.createElement('div'); d.textContent=msg; d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1e293b;color:white;padding:8px 16px;border-radius:8px;z-index:10000;opacity:0;transition:opacity 0.2s;'; document.body.appendChild(d); setTimeout(()=>d.style.opacity='1',10); setTimeout(()=>{d.style.opacity='0';setTimeout(()=>d.remove(),200);},2000); };
+
+// Tooltip hover functions
+function showTooltip(el) {
+    const tooltip = el.querySelector('.info-tooltip');
+    if (tooltip) tooltip.style.display = 'block';
+}
+function hideTooltip(el, delay = 0) {
+    setTimeout(() => {
+        const tooltip = el.querySelector('.info-tooltip');
+        if (tooltip && !el.matches(':hover')) tooltip.style.display = 'none';
+    }, delay);
+}
+
+// Tooltip hover functions
+function showTooltip(el) {
+    const tooltip = el.querySelector('.info-tooltip');
+    if (tooltip) tooltip.style.display = 'block';
+}
+function hideTooltip(el, delay = 0) {
+    setTimeout(() => {
+        const tooltip = el.querySelector('.info-tooltip');
+        if (tooltip && !el.matches(':hover')) tooltip.style.display = 'none';
+    }, delay);
+}
 
         // ===== THEME =====
         function toggleTheme() {
@@ -207,6 +268,8 @@
             else if (page === 'automation') await renderAutomation(c);
             else if (page === 'roadmap') await renderRoadmap(c);
             else if (page === 'help') await renderHelp(c);
+            else if (page === 'editors') await renderEditors(c);
+            else if (page === 'settings') await renderSettings(c);
         }
 
         // ===== DASHBOARD =====
@@ -297,10 +360,22 @@
             const c = document.getElementById('wizardContent');
             if(step===1) {
                 c.innerHTML = `
-                    <h3>Upload Document</h3>
+                    <div class="step-title">
+                        <h3>Upload Document</h3>
+                        <span class="info-icon" onmouseenter="showTooltip(this)" onmouseleave="hideTooltip(this, 2000)">
+                            <i class="fas fa-info-circle"></i>
+                            <span class="info-tooltip">
+                                <button class="skip-next-btn" onclick="skipWizardStep()">Skip Next →</button>
+                            </span>
+                        </span>
+                    </div>
                     <div id="uploadZone" class="upload-zone"><i class="fas fa-cloud-upload-alt"></i><p>Drag & drop or click</p><input type="file" id="fileInput" accept=".pdf,.txt,.docx,.epub" style="display:none;"></div>
                     <div id="progressArea" style="display:none; margin-top:12px;"><div class="progress"><div id="progressFill" class="progress-fill" style="width:0%"></div></div><div id="progressText">Starting...</div><div id="charCount">Characters: 0</div></div>
-                `;
+                    <div style="margin-top:16px; display:flex; justify-content:space-between; align-items:center;">
+                        <button class="btn" onclick="skipWizardStep()">Skip Step</button>
+                        <button class="btn" id="wizNextBtn1" onclick="wizardGoToStep2()" disabled>Next →</button>
+                    </div>
+        `;
                 const zone = document.getElementById('uploadZone');
                 zone.onclick = () => document.getElementById('fileInput').click();
                 zone.addEventListener('dragover', e=>{e.preventDefault(); zone.classList.add('drag-over');});
@@ -310,35 +385,70 @@
             }
             else if(step===2) {
                 c.innerHTML = `
-                    <h3>Choose Type</h3>
+                    <div class="step-title">
+                        <h3>Choose Type</h3>
+                        <span class="info-icon" onmouseenter="showTooltip(this)" onmouseleave="hideTooltip(this, 2000)">
+                            <i class="fas fa-info-circle"></i>
+                            <span class="info-tooltip">
+                                <button class="skip-next-btn" onclick="skipWizardStep()">Skip Next →</button>
+                            </span>
+                        </span>
+                    </div>
                     <div class="type-grid">
                         <div class="type-card" data-type="learn-detail" onclick="selectType('learn-detail')"><i class="fas fa-book-open"></i><br>Learn Detail</div>
                         <div class="type-card" data-type="cheatsheet" onclick="selectType('cheatsheet')"><i class="fas fa-table"></i><br>Cheatsheet</div>
                         <div class="type-card" data-type="mcq" onclick="selectType('mcq')"><i class="fas fa-list-check"></i><br>MCQ Quiz</div>
                         <div class="type-card" data-type="fill-blank" onclick="selectType('fill-blank')"><i class="fas fa-pencil-alt"></i><br>Fill-in-Blank</div>
                     </div>
-                    <button class="btn" onclick="wizardNext2()">Next →</button>
+                    <div style="margin-top:16px; display:flex; justify-content:space-between; align-items:center;">
+                        <button class="btn" onclick="skipWizardStep()">Skip Step</button>
+                        <button class="btn" onclick="wizardNext2()">Next →</button>
+                    </div>
                 `;
             }
             else if(step===3) {
                 c.innerHTML = `
-                    <h3>Quantity</h3>
+                    <div class="step-title">
+                        <h3>Quantity</h3>
+                        <span class="info-icon" onmouseenter="showTooltip(this)" onmouseleave="hideTooltip(this, 2000)">
+                            <i class="fas fa-info-circle"></i>
+                            <span class="info-tooltip">
+                                <button class="skip-next-btn" onclick="skipWizardStep()">Skip Next →</button>
+                            </span>
+                        </span>
+                    </div>
                     <div style="display:flex; gap:8px;"><button class="btn" onclick="setQty(10)">10</button><button class="btn" onclick="setQty(20)">20</button><button class="btn" onclick="setQty(30)">30</button><button class="btn" onclick="setQty(50)">50</button></div>
                     <input type="number" id="customQty" value="${state.wizardData.quantity}" min="1" max="200" style="margin-top:16px;">
-                    <button class="btn" onclick="wizardNext4()">Next →</button>
+                    <div style="margin-top:16px; display:flex; justify-content:space-between; align-items:center;">
+                        <button class="btn" onclick="skipWizardStep()">Skip Step</button>
+                        <button class="btn" onclick="wizardNext4()">Next →</button>
+                    </div>
                 `;
                 document.getElementById('customQty').addEventListener('input', e=>state.wizardData.quantity = parseInt(e.target.value)||20);
             }
             else if(step===4) {
                 c.innerHTML = `
-                    <h3>Generate</h3>
+                    <div class="step-title">
+                        <h3>Generate</h3>
+                        <span class="info-icon" onmouseenter="showTooltip(this)" onmouseleave="hideTooltip(this, 2000)">
+                            <i class="fas fa-info-circle"></i>
+                            <span class="info-tooltip">
+                                <button class="skip-next-btn" onclick="skipWizardStep()">Skip Next →</button>
+                            </span>
+                        </span>
+                    </div>
                     <div style="background:var(--panel); border:1px solid var(--border); padding:16px; border-radius:8px;">
                         <strong>Steps:</strong><br>1. Download Prompt. 2. Open file, copy. 3. Paste into AI. 4. Paste output below and Validate.
                     </div>
                     <button class="btn primary" onclick="downloadPrompt()">Download Prompt</button>
+                    <div id="dlStatus" style="font-size:12px; margin-top:4px;"></div>
+                    <div id="dlStatus" style="font-size:12px; margin-top:4px;"></div>
                     <textarea id="aiOutput" rows="10" style="width:100%; margin-top:12px; background:var(--panel); border:1px solid var(--border); color:var(--text);"></textarea>
                     <div id="validationError" style="color:var(--danger);"></div>
-                    <button class="btn primary" onclick="validateWizardOutput()">Validate</button>
+                    <div style="margin-top:16px; display:flex; justify-content:space-between; align-items:center;">
+                        <button class="btn" onclick="skipWizardStep()">Skip Step</button>
+                        <button class="btn primary" onclick="validateWizardOutput()">Validate</button>
+                    </div>
                 `;
             }
         }
@@ -359,6 +469,9 @@
                 const id = await db.files.add({ name:file.name, type:file.type, date:Date.now(), extractedText:extracted, size: Math.round(extracted.length/1024), tags:[] });
                 state.wizardData.fileId = id;
                 toast('File extracted!');
+                // Enable Next button
+                const nextBtn = document.getElementById('wizNextBtn1');
+                if(nextBtn) nextBtn.disabled = false;
             } catch(err) { alert('Error: '+err.message); }
         }
         async function extractText(file) {
@@ -373,6 +486,7 @@
             else return "Unsupported";
         }
         function selectType(t) { state.wizardData.selectedType = t; document.querySelectorAll('.type-card').forEach(c=>c.classList.remove('selected')); document.querySelector(`.type-card[data-type="${t}"]`)?.classList.add('selected'); }
+        function wizardGoToStep2() { state.wizardStep = 2; renderWizardStep(); }
         function wizardNext2() { if(!state.wizardData.selectedType){alert('Select type');return;} state.wizardStep=3; renderWizardStep(); }
         function setQty(q) { state.wizardData.quantity=q; document.getElementById('customQty').value=q; }
         function wizardNext4() { state.wizardStep=4; renderWizardStep(); }
@@ -436,6 +550,22 @@
         async function saveLearnPdf() { const blob = await htmlToPdfBlob(state.wizardData.learnHtml); downloadBlob(blob, 'learn.pdf'); }
 
         // ===== QUIZ VIEW =====
+        function generateQuizHTML() {
+            const qs = state.quizState.questions;
+            let html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:sans-serif;padding:20px;} .q{margin-bottom:20px;page-break-inside:avoid;}</style></head><body><h1>Quiz</h1>';
+            qs.forEach((q, i) => {
+                html += `<div class="q"><strong>${i+1}. ${esc(q.question || q.text)}</strong><br>`;
+                if (q.choices) {
+                    q.choices.forEach((c, ci) => {
+                        html += `${String.fromCharCode(65 + ci)}. ${esc(c)}<br>`;
+                    });
+                } else {
+                    html += `Answer: ${esc(q.correct)}<br>`;
+                }
+                html += '</div>';
+            });
+            return html + '</body></html>';
+        }
         function showQuizView() {
             const content = document.getElementById('mainContent');
             content.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom:16px;"><h2>Quiz</h2><div><button class="btn primary" onclick="saveQuizPdf()">Save PDF</button><button class="btn" onclick="goTo('library')">Back</button></div></div><div id="quizContainer"><div id="questionText" style="font-size:18px; margin-bottom:10px;"></div><div id="choicesArea"></div><div style="margin-top:10px;"><button class="btn" onclick="quizPrev()">◀</button><button class="btn" onclick="quizNext()">▶</button><button class="btn" onclick="quizPeek()">Peek</button><button class="btn" onclick="quizRetry()">Retry</button><button class="btn primary" onclick="quizSubmit()">Submit</button></div></div>`;
@@ -555,6 +685,40 @@
             showResult();
         }
 
+        // ===== EDITORS =====
+        async function renderEditors(container) {
+            container.innerHTML = `
+                <h2>Editors</h2>
+                <p>Simple text editor for quick edits.</p>
+                <textarea id="textEditor" rows="20" style="width:100%; background:var(--panel); border:1px solid var(--border); color:var(--text); padding:10px;"></textarea>
+                <button class="btn" onclick="alert('Text editor save is not implemented yet.')">Save</button>
+            `;
+        }
+
+        // ===== SETTINGS =====
+        async function renderSettings(container) {
+            const theme = state.theme;
+            container.innerHTML = `
+                <h2>Settings</h2>
+                <label>Theme:
+                    <select id="themeSelect" onchange="setTheme(this.value)">
+                        <option value="dark" ${theme === 'dark' ? 'selected' : ''}>Dark</option>
+                        <option value="light" ${theme === 'light' ? 'selected' : ''}>Light</option>
+                        <option value="high-contrast" ${theme === 'high-contrast' ? 'selected' : ''}>High Contrast</option>
+                    </select>
+                </label>
+                <br><br>
+                <button class="btn" onclick="alert('Settings saved!')">Save Settings</button>
+            `;
+        }
+
+        function setTheme(t) {
+            state.theme = t;
+            applyTheme();
+            localStorage.setItem('printms_theme', t);
+            renderSettings(document.getElementById('mainContent'));
+        }
+
         // ===== HELP =====
         function renderHelp(container) {
             container.innerHTML = `<h2>Help & Docs</h2><p>This is a comprehensive print management system. Use the wizard to create quizzes, lessons, and cheatsheets.</p><h3>Keyboard shortcuts:</h3><ul><li>Ctrl+K - Command palette</li><li>Ctrl+N - New wizard</li><li>Ctrl+L - Library</li></ul><h3>FAQ:</h3><div id="faq"></div>`;
@@ -616,24 +780,36 @@
         function generateCheatsheetPage(items) { return `<!DOCTYPE html><html><head><style>${cheatsheetCSS}</style></head><body>${generateCheatsheetBody(items)}</body></html>`; }
 
         // ===== INIT =====
-        async function init() {
-            applyTheme();
-            if(!localStorage.getItem('printms_user')) {
-                // Mock auth
-                const user = { name: 'Guest', role: 'viewer' };
-                await db.auth.put({ key: 'current', ...user });
-                localStorage.setItem('printms_user', JSON.stringify(user));
-            } else {
-                const user = JSON.parse(localStorage.getItem('printms_user'));
-                state.user = user;
-            }
-            goTo('dashboard');
-            // Onboarding
-            if(!localStorage.getItem('printms_onboarded')) {
-                setTimeout(() => alert('Welcome! Use Ctrl+K for commands.'), 1000);
-                localStorage.setItem('printms_onboarded', 'true');
-            }
-        }
+async function init() {
+    applyTheme();
+    if(!localStorage.getItem('printms_user')) {
+        // Mock auth
+        const user = { name: 'Guest', role: 'viewer' };
+        await db.auth.put({ key: 'current', ...user });
+        localStorage.setItem('printms_user', JSON.stringify(user));
+    } else {
+        const user = JSON.parse(localStorage.getItem('printms_user'));
+        state.user = user;
+    }
+    goTo('dashboard');
+
+    // Show welcome modal only on first visit
+    if(!localStorage.getItem('printms_welcomed')) {
+        setTimeout(() => {
+            document.getElementById('welcomeModal').style.display = 'flex';
+            localStorage.setItem('printms_welcomed', 'true');
+        }, 500);
+    }
+}
+
+// Function to close welcome modal
+function closeWelcome() {
+    document.getElementById('welcomeModal').style.display = 'none';
+}
+
+function showAbout() {
+    alert('PrintMS v4.0\n\nA complete print management system for generating quizzes, lessons, and cheatsheets.');
+}
         init();
     </script>
 </body>
