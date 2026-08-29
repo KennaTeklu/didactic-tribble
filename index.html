@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Print Management System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        :root {
+            --bg: #0f172a; --panel: #1e293b; --panel-light: #334155; --border: #475569;
+            --text: #e2e8f0; --text-dim: #94a3b8; --accent: #6366f1; --accent-hover: #4f46e5;
+            --success: #10b981; --danger: #ef4444; --warning: #f59e0b;
+            --radius: 8px;
+        }
+        [data-theme="light"] { --bg: #f8fafc; --panel: #fff; --panel-light: #e2e8f0; --border: #cbd5e1; --text: #0f172a; --text-dim: #475569; --accent: #4f46e5; }
+        [data-theme="high-contrast"] { --bg: #000; --panel: #1a1a1a; --panel-light: #2a2a2a; --border: #fff; --text: #fff; --text-dim: #ccc; --accent: #ff0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+        .app { display: flex; flex-direction: column; height: 100vh; }
+        .menubar { display: flex; background: var(--panel); border-bottom: 1px solid var(--border); padding: 4px 8px; gap: 4px; align-items: center; }
+        .menu-item { padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+        .menu-item:hover { background: var(--panel-light); }
+        .toolbar { display: flex; background: var(--panel); border-bottom: 1px solid var(--border); padding: 6px 8px; gap: 4px; align-items: center; }
+        .tool-btn { background: var(--panel-light); border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
+        .tool-btn:hover { background: var(--accent); color: white; }
+        .tool-btn.primary { background: var(--accent); color: white; }
+        .search-box { margin-left: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; display: flex; align-items: center; gap: 6px; }
+        .search-box input { background: none; border: none; color: var(--text); outline: none; }
+        .main { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 240px; background: var(--panel); border-right: 1px solid var(--border); padding: 8px; overflow-y: auto; }
+        .tree-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; color: var(--text-dim); }
+        .tree-item:hover { background: var(--panel-light); color: var(--text); }
+        .tree-item.selected { background: var(--accent); color: white; }
+        .content { flex: 1; background: var(--bg); overflow-y: auto; padding: 20px; }
+        .statusbar { display: flex; justify-content: space-between; background: var(--panel); border-top: 1px solid var(--border); padding: 4px 12px; font-size: 12px; color: var(--text-dim); }
+        .breadcrumbs { padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--border); }
+        .breadcrumbs a { color: var(--accent); text-decoration: none; margin-right: 5px; }
+        .command-palette { position: fixed; top: 20%; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; width: 400px; max-height: 300px; overflow-y: auto; z-index: 2000; display: none; }
+        .command-input { width: 100%; background: var(--panel-light); border: none; padding: 10px; color: var(--text); border-bottom: 1px solid var(--border); }
+        .command-item { padding: 8px 12px; cursor: pointer; }
+        .command-item:hover { background: var(--panel-light); }
+        .skeleton { display: inline-block; width: 100%; height: 16px; background: linear-gradient(90deg, var(--panel) 25%, var(--panel-light) 50%, var(--panel) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .mobile-nav { display: none; }
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .dialog { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; max-width: 700px; width: 90%; max-height: 85vh; overflow: auto; }
+        .dialog-header { display: flex; justify-content: space-between; padding: 16px; border-bottom: 1px solid var(--border); }
+        .dialog-body { padding: 20px; }
+        .wizard-progress { display: flex; margin-bottom: 20px; }
+        .wizard-step { flex: 1; height: 24px; background: var(--panel-light); text-align: center; line-height: 24px; font-size: 12px; color: var(--text-dim); }
+        .wizard-step.active { background: var(--accent); color: white; }
+        .upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; }
+        .type-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        .type-card { border: 1px solid var(--border); border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; }
+        .type-card.selected { border-color: var(--accent); }
+        .btn { background: var(--panel-light); border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px; cursor: pointer; color: var(--text); }
+        .btn:hover { background: var(--accent); color: white; }
+        .btn.primary { background: var(--accent); color: white; }
+        .btn.danger { background: var(--danger); color: white; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background: var(--panel-light); color: var(--text-dim); }
+        .choice-btn { display: block; width: 100%; padding: 10px; margin: 4px 0; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; color: var(--text); }
+        .choice-btn.selected { border-color: var(--accent); background: var(--accent); color: white; }
+        .choice-btn.correct { background: var(--success); }
+        .choice-btn.wrong { background: var(--danger); }
+        @media (max-width: 768px) { .sidebar { display: none; } .mobile-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--panel); border-top: 1px solid var(--border); justify-content: space-around; padding: 8px; } .content { padding-bottom: 60px; } }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="menubar">
+            <div class="menu-item" onclick="showAbout()">File</div>
+            <div class="menu-item">Edit</div>
+            <div class="menu-item">View</div>
+            <div class="menu-item" onclick="openCommandPalette()">Tools</div>
+            <div class="menu-item">Help</div>
+            <button class="tool-btn" id="themeToggle" onclick="toggleTheme()"><i class="fas fa-sun"></i></button>
+        </div>
+        <div class="toolbar">
+            <button class="tool-btn primary" onclick="openWizard()"><i class="fas fa-plus"></i> New</button>
+            <button class="tool-btn" onclick="goTo('dashboard')"><i class="fas fa-home"></i> Dashboard</button>
+            <button class="tool-btn" onclick="goTo('library')"><i class="fas fa-folder"></i> Library</button>
+            <button class="tool-btn" onclick="goTo('processing')"><i class="fas fa-cogs"></i> Processing</button>
+            <button class="tool-btn" onclick="goTo('automation')"><i class="fas fa-bolt"></i> Automation</button>
+            <button class="tool-btn" onclick="goTo('roadmap')"><i class="fas fa-map"></i> Roadmap</button>
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="globalSearch" placeholder="Search..." oninput="globalSearch(this.value)">
+            </div>
+        </div>
+        <div class="breadcrumbs" id="breadcrumbs"><a href="#" onclick="goTo('dashboard')">Home</a> <span>/</span> <span id="currentCrumb">Dashboard</span></div>
+        <div class="main">
+            <div class="sidebar" id="sidebar">
+                <div class="tree-item" data-page="dashboard" onclick="goTo('dashboard')"><i class="fas fa-home"></i><span>Dashboard</span></div>
+                <div class="tree-item" data-page="library" onclick="goTo('library')"><i class="fas fa-folder"></i><span>Library</span></div>
+                <div class="tree-item" data-page="processing" onclick="goTo('processing')"><i class="fas fa-cogs"></i><span>Processing</span></div>
+                <div class="tree-item" data-page="automation" onclick="goTo('automation')"><i class="fas fa-bolt"></i><span>Automation</span></div>
+                <div class="tree-item" data-page="roadmap" onclick="goTo('roadmap')"><i class="fas fa-map"></i><span>Roadmap</span></div>
+                <div class="tree-item" data-page="help" onclick="goTo('help')"><i class="fas fa-question-circle"></i><span>Help</span></div>
+            </div>
+            <div class="content" id="mainContent"></div>
+        </div>
+        <div class="statusbar"><span id="statusLeft">Ready</span><span id="statusRight">PrintMS v4.0</span></div>
+        <div class="mobile-nav">
+            <button onclick="goTo('dashboard')"><i class="fas fa-home"></i></button>
+            <button onclick="goTo('library')"><i class="fas fa-folder"></i></button>
+            <button onclick="goTo('processing')"><i class="fas fa-cogs"></i></button>
+            <button onclick="openWizard()"><i class="fas fa-plus"></i></button>
+            <button onclick="goTo('settings')"><i class="fas fa-cog"></i></button>
+        </div>
+    </div>
+
+    <div id="commandPalette" class="command-palette">
+        <input type="text" id="commandInput" class="command-input" placeholder="Type command..." oninput="filterCommands(this.value)">
+        <div id="commandList"></div>
+    </div>
+
+    <div id="wizardModal" class="modal-backdrop" style="display:none;">
+        <div class="dialog">
+            <div class="dialog-header">
+                <h3>Wizard</h3>
+                <div>
+                    <button class="btn" onclick="wizardStartOver()">Start Over</button>
+                    <button class="btn" onclick="wizardPrev()">Back</button>
+                    <button class="btn danger" onclick="closeWizard()">Close</button>
+                </div>
+            </div>
+            <div class="dialog-body">
+                <div class="wizard-progress">
+                    <div class="wizard-step active" id="ws1">Upload</div>
+                    <div class="wizard-step" id="ws2">Type</div>
+                    <div class="wizard-step" id="ws3">Quantity</div>
+                    <div class="wizard-step" id="ws4">Generate</div>
+                </div>
+                <div id="wizardContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="flashOverlay" style="position:fixed; inset:0; pointer-events:none; opacity:0; background:#28a745; z-index:9999; transition:opacity 0.2s;"></div>
+
+    <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+    <script>
+        // ===== DATABASE (Fixed versioning) =====
+        const db = new Dexie('PrintMSDB');
+        db.version(2).stores({
+            files: '++id, name, type, date, extractedText, size, tags',
+            generated: '++id, fileId, type, date, content, title',
+            presets: '++id, name, type, quantity',
+            tasks: '++id, name, due, status',
+            auth: 'key'
+        });
+
+        // ===== STATE =====
+        let state = {
+            currentPage: 'dashboard',
+            user: null,
+            theme: localStorage.getItem('printms_theme') || 'dark',
+            wizardStep: 1,
+            wizardData: { fileId:null, extractedText:'', selectedType:null, quantity:20, generatedContent:null, learnHtml:null },
+            quizState: { questions:[], index:0, answers:{}, peeked:{}, completed:false },
+            filters: { search:'', type:'all' }
+        };
+
+        // ===== UTILITIES =====
+        const esc = s => s.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+        const flash = color => { const f=document.getElementById('flashOverlay'); f.style.background=color; f.style.opacity='0.9'; setTimeout(()=>f.style.opacity='0',400); };
+        const toast = msg => { const d=document.createElement('div'); d.textContent=msg; d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1e293b;color:white;padding:8px 16px;border-radius:8px;z-index:10000;opacity:0;transition:opacity 0.2s;'; document.body.appendChild(d); setTimeout(()=>d.style.opacity='1',10); setTimeout(()=>{d.style.opacity='0';setTimeout(()=>d.remove(),200);},2000); };
+
+        // ===== THEME =====
+        function toggleTheme() {
+            const themes = ['dark','light','high-contrast'];
+            const idx = themes.indexOf(state.theme);
+            state.theme = themes[(idx+1)%3];
+            applyTheme();
+            localStorage.setItem('printms_theme', state.theme);
+        }
+        function applyTheme() { document.documentElement.setAttribute('data-theme', state.theme); }
+
+        // ===== NAVIGATION =====
+        function goTo(page) {
+            state.currentPage = page;
+            document.querySelectorAll('.tree-item').forEach(el=>el.classList.remove('selected'));
+            document.querySelector(`.tree-item[data-page="${page}"]`)?.classList.add('selected');
+            renderPage(page);
+            updateBreadcrumbs(page);
+            document.getElementById('statusLeft').textContent = 'Page: '+page;
+        }
+        function updateBreadcrumbs(page) {
+            const bc = document.getElementById('breadcrumbs');
+            const names = { dashboard:'Dashboard', library:'Library', processing:'Processing', automation:'Automation', roadmap:'Roadmap', help:'Help' };
+            let html = '<a href="#" onclick="goTo(\'dashboard\')">Home</a> / ';
+            html += `<span>${names[page] || page}</span>`;
+            document.getElementById('currentCrumb').textContent = names[page] || page;
+            bc.innerHTML = html;
+        }
+        async function renderPage(page) {
+            const c = document.getElementById('mainContent');
+            c.innerHTML = '';
+            if (page === 'dashboard') await renderDashboard(c);
+            else if (page === 'library') await renderLibrary(c);
+            else if (page === 'processing') await renderProcessing(c);
+            else if (page === 'automation') await renderAutomation(c);
+            else if (page === 'roadmap') await renderRoadmap(c);
+            else if (page === 'help') await renderHelp(c);
+        }
+
+        // ===== DASHBOARD =====
+        async function renderDashboard(container) {
+            const fileCount = await db.files.count();
+            const genCount = await db.generated.count();
+            const recent = await db.files.orderBy('date').reverse().limit(5).toArray();
+            container.innerHTML = `
+                <h2>Dashboard</h2>
+                <div class="stats-row">
+                    <div class="stat"><div class="stat-value">${fileCount}</div><div class="stat-label">Files</div></div>
+                    <div class="stat"><div class="stat-value">${genCount}</div><div class="stat-label">Generated</div></div>
+                </div>
+                <button class="btn primary" onclick="openWizard()">New Wizard</button>
+                <h3>Recent Files</h3>
+                <table><thead><tr><th>Name</th><th>Date</th><th>Action</th></tr></thead><tbody>
+                ${recent.map(f=>`<tr><td>${esc(f.name)}</td><td>${new Date(f.date).toLocaleString()}</td><td><button class="btn" onclick="openWizardFromFile(${f.id})">Use</button></td></tr>`).join('') || '<tr><td colspan="3">No files</td></tr>'}
+                </tbody></table>`;
+        }
+
+        // ===== LIBRARY =====
+        async function renderLibrary(container) {
+            container.innerHTML = `
+                <h2>File Library</h2>
+                <div style="display:flex; gap:8px; margin-bottom:16px;">
+                    <input type="text" id="libSearch" placeholder="Search files..." oninput="libSearch(this.value)" style="flex:1; background:var(--panel); border:1px solid var(--border); color:var(--text); padding:6px; border-radius:4px;">
+                    <select id="libTypeFilter" onchange="libFilter(this.value)" style="background:var(--panel); border:1px solid var(--border); color:var(--text); padding:6px;">
+                        <option value="all">All types</option>
+                        <option value="pdf">PDF</option>
+                        <option value="txt">TXT</option>
+                        <option value="docx">DOCX</option>
+                    </select>
+                    <button class="btn primary" onclick="openWizard()">Add</button>
+                </div>
+                <div id="libTable"><div class="skeleton"></div></div>
+            `;
+            const files = await db.files.toArray();
+            const filtered = files.filter(f => {
+                const q = state.filters.search.toLowerCase();
+                const matchesSearch = !q || f.name.toLowerCase().includes(q);
+                const matchesType = state.filters.type === 'all' || f.type === state.filters.type;
+                return matchesSearch && matchesType;
+            });
+            const tableHtml = `<table><thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Date</th><th>Tags</th><th>Actions</th></tr></thead><tbody>
+                ${filtered.map(f=>`<tr>
+                    <td>${esc(f.name)}</td><td>${esc(f.type)}</td><td>${(f.size||0)} KB</td><td>${new Date(f.date).toLocaleDateString()}</td><td>${(f.tags||[]).join(', ')}</td>
+                    <td><button class="btn" onclick="openWizardFromFile(${f.id})">Use</button><button class="btn" onclick="viewFile(${f.id})">View</button><button class="btn" onclick="tagFile(${f.id})">Tag</button><button class="btn danger" onclick="deleteFile(${f.id})">Del</button></td>
+                </tr>`).join('') || '<tr><td colspan="6">No files</td></tr>'}
+            </tbody></table>`;
+            document.getElementById('libTable').innerHTML = tableHtml;
+        }
+        function libSearch(q) { state.filters.search = q; renderLibrary(document.getElementById('mainContent')); }
+        function libFilter(type) { state.filters.type = type; renderLibrary(document.getElementById('mainContent')); }
+        async function viewFile(id) { const f = await db.files.get(id); if(f) alert(`File: ${f.name}\n\n${f.extractedText.substring(0,500)}...`); }
+        async function deleteFile(id) { if(confirm('Delete file?')) { await db.files.delete(id); renderLibrary(document.getElementById('mainContent')); } }
+        async function tagFile(id) {
+            const f = await db.files.get(id);
+            const tags = prompt('Enter tags (comma-separated):', (f.tags||[]).join(', '));
+            if(tags !== null) {
+                f.tags = tags.split(',').map(t=>t.trim()).filter(Boolean);
+                await db.files.put(f);
+                renderLibrary(document.getElementById('mainContent'));
+            }
+        }
+        async function openWizardFromFile(id) {
+            const f = await db.files.get(id);
+            openWizard();
+            state.wizardData.fileId = f.id;
+            state.wizardData.extractedText = f.extractedText;
+            state.wizardStep = 2;
+            renderWizardStep();
+        }
+
+        // ===== WIZARD =====
+        function openWizard() {
+            state.wizardStep = 1;
+            state.wizardData = { fileId:null, extractedText:'', selectedType:null, quantity:20, generatedContent:null, learnHtml:null };
+            document.getElementById('wizardModal').style.display = 'flex';
+            renderWizardStep();
+        }
+        function closeWizard() { document.getElementById('wizardModal').style.display = 'none'; }
+        function wizardStartOver() { if(confirm('Start over?')) openWizard(); }
+        function wizardPrev() { if(state.wizardStep>1) { state.wizardStep--; renderWizardStep(); } }
+        function skipWizardStep() { if(state.wizardStep<4) { state.wizardStep++; renderWizardStep(); } }
+        function renderWizardStep() {
+            const step = state.wizardStep;
+            document.querySelectorAll('.wizard-step').forEach(el=>{el.classList.remove('active'); if(el.id==='ws'+step)el.classList.add('active');});
+            const c = document.getElementById('wizardContent');
+            if(step===1) {
+                c.innerHTML = `
+                    <h3>Upload Document</h3>
+                    <div id="uploadZone" class="upload-zone"><i class="fas fa-cloud-upload-alt"></i><p>Drag & drop or click</p><input type="file" id="fileInput" accept=".pdf,.txt,.docx,.epub" style="display:none;"></div>
+                    <div id="progressArea" style="display:none; margin-top:12px;"><div class="progress"><div id="progressFill" class="progress-fill" style="width:0%"></div></div><div id="progressText">Starting...</div><div id="charCount">Characters: 0</div></div>
+                `;
+                const zone = document.getElementById('uploadZone');
+                zone.onclick = () => document.getElementById('fileInput').click();
+                zone.addEventListener('dragover', e=>{e.preventDefault(); zone.classList.add('drag-over');});
+                zone.addEventListener('dragleave', ()=>zone.classList.remove('drag-over'));
+                zone.addEventListener('drop', e=>{e.preventDefault(); zone.classList.remove('drag-over'); if(e.dataTransfer.files.length) handleWizardFile(e.dataTransfer.files[0]);});
+                document.getElementById('fileInput').addEventListener('change', e=>{ if(e.target.files.length) handleWizardFile(e.target.files[0]); });
+            }
+            else if(step===2) {
+                c.innerHTML = `
+                    <h3>Choose Type</h3>
+                    <div class="type-grid">
+                        <div class="type-card" data-type="learn-detail" onclick="selectType('learn-detail')"><i class="fas fa-book-open"></i><br>Learn Detail</div>
+                        <div class="type-card" data-type="cheatsheet" onclick="selectType('cheatsheet')"><i class="fas fa-table"></i><br>Cheatsheet</div>
+                        <div class="type-card" data-type="mcq" onclick="selectType('mcq')"><i class="fas fa-list-check"></i><br>MCQ Quiz</div>
+                        <div class="type-card" data-type="fill-blank" onclick="selectType('fill-blank')"><i class="fas fa-pencil-alt"></i><br>Fill-in-Blank</div>
+                    </div>
+                    <button class="btn" onclick="wizardNext2()">Next →</button>
+                `;
+            }
+            else if(step===3) {
+                c.innerHTML = `
+                    <h3>Quantity</h3>
+                    <div style="display:flex; gap:8px;"><button class="btn" onclick="setQty(10)">10</button><button class="btn" onclick="setQty(20)">20</button><button class="btn" onclick="setQty(30)">30</button><button class="btn" onclick="setQty(50)">50</button></div>
+                    <input type="number" id="customQty" value="${state.wizardData.quantity}" min="1" max="200" style="margin-top:16px;">
+                    <button class="btn" onclick="wizardNext4()">Next →</button>
+                `;
+                document.getElementById('customQty').addEventListener('input', e=>state.wizardData.quantity = parseInt(e.target.value)||20);
+            }
+            else if(step===4) {
+                c.innerHTML = `
+                    <h3>Generate</h3>
+                    <div style="background:var(--panel); border:1px solid var(--border); padding:16px; border-radius:8px;">
+                        <strong>Steps:</strong><br>1. Download Prompt. 2. Open file, copy. 3. Paste into AI. 4. Paste output below and Validate.
+                    </div>
+                    <button class="btn primary" onclick="downloadPrompt()">Download Prompt</button>
+                    <textarea id="aiOutput" rows="10" style="width:100%; margin-top:12px; background:var(--panel); border:1px solid var(--border); color:var(--text);"></textarea>
+                    <div id="validationError" style="color:var(--danger);"></div>
+                    <button class="btn primary" onclick="validateWizardOutput()">Validate</button>
+                `;
+            }
+        }
+        async function handleWizardFile(file) {
+            const pa = document.getElementById('progressArea');
+            pa.style.display = 'block';
+            const fill = document.getElementById('progressFill');
+            const text = document.getElementById('progressText');
+            const cnt = document.getElementById('charCount');
+            fill.style.width = '10%';
+            text.textContent = 'Extracting...';
+            try {
+                const extracted = await extractText(file);
+                fill.style.width = '100%';
+                text.textContent = 'Extraction complete!';
+                cnt.textContent = `Characters: ${extracted.length.toLocaleString()}`;
+                state.wizardData.extractedText = extracted;
+                const id = await db.files.add({ name:file.name, type:file.type, date:Date.now(), extractedText:extracted, size: Math.round(extracted.length/1024), tags:[] });
+                state.wizardData.fileId = id;
+                toast('File extracted!');
+            } catch(err) { alert('Error: '+err.message); }
+        }
+        async function extractText(file) {
+            if(file.type==='application/pdf'||file.name.endsWith('.pdf')) {
+                const ab = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({data:ab}).promise;
+                let t='';
+                for(let i=1;i<=pdf.numPages;i++){ const p=await pdf.getPage(i); const c=await p.getTextContent(); t+=c.items.map(x=>x.str).join(' ')+'\n'; }
+                return t.trim();
+            } else if(file.name.endsWith('.txt')) return (await file.text()).trim();
+            else if(file.name.endsWith('.docx')) { const ab=await file.arrayBuffer(); const r=await mammoth.convertToHtml({arrayBuffer:ab}); return r.value.replace(/<[^>]*>/g,' ').trim(); }
+            else return "Unsupported";
+        }
+        function selectType(t) { state.wizardData.selectedType = t; document.querySelectorAll('.type-card').forEach(c=>c.classList.remove('selected')); document.querySelector(`.type-card[data-type="${t}"]`)?.classList.add('selected'); }
+        function wizardNext2() { if(!state.wizardData.selectedType){alert('Select type');return;} state.wizardStep=3; renderWizardStep(); }
+        function setQty(q) { state.wizardData.quantity=q; document.getElementById('customQty').value=q; }
+        function wizardNext4() { state.wizardStep=4; renderWizardStep(); }
+        function buildPrompt() {
+            const {selectedType, extractedText, quantity} = state.wizardData;
+            let p='';
+            if(selectedType==='learn-detail') p=`Create a detailed HTML lesson. Use simple English, no pronouns, active voice, include 3-5 SVG diagrams. Length: ${quantity} pages. Content:\n\n${extractedText}`;
+            else if(selectedType==='cheatsheet') p=`Create a compact cheatsheet JSON array with ${quantity} items. Each item: term, definition, example, memory, tag (DEFINITION, PERSON, PROCESS, CONTROVERSY, FORMULA), optional diagram (ASCII max 5 lines). Content:\n\n${extractedText}`;
+            else if(selectedType==='mcq') p=`Create MCQ quiz JSON with ${quantity} questions. Format: [{"question":"...","choices":["A","B","C","D"],"correct":0,"explanation":"..."}]. Content:\n\n${extractedText}`;
+            else if(selectedType==='fill-blank') p=`Create fill-in-blank JSON with ${quantity} questions. Format: [{"text":"...","correct":"...","acceptableAlternatives":["..."]}]. Content:\n\n${extractedText}`;
+            return p;
+        }
+        function downloadPrompt() {
+            const p = buildPrompt();
+            const blob = new Blob([p], {type:'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href=url; a.download = `ai_prompt_${Date.now()}.txt`; a.click();
+            URL.revokeObjectURL(url);
+            document.getElementById('dlStatus').textContent = 'Downloaded';
+        }
+        async function validateWizardOutput() {
+            const raw = document.getElementById('aiOutput').value.trim();
+            const error = document.getElementById('validationError');
+            if(!raw){error.textContent='Paste output first.';return;}
+            try{
+                let parsed;
+                if(state.wizardData.selectedType==='learn-detail'){
+                    if(!raw.startsWith('<!DOCTYPE')&&!raw.startsWith('<html')) throw new Error('Invalid HTML');
+                    state.wizardData.generatedContent = raw;
+                } else {
+                    parsed = JSON.parse(raw);
+                    if(!Array.isArray(parsed)) throw new Error('Expected array');
+                    if(state.wizardData.selectedType==='mcq') parsed.forEach((q,i)=>{if(!q.question||!q.choices||q.choices.length<2||q.correct<0||q.correct>=q.choices.length)throw new Error(`Question ${i+1} invalid`);});
+                    else if(state.wizardData.selectedType==='fill-blank') parsed.forEach((q,i)=>{if(!q.text||!q.correct)throw new Error(`Question ${i+1} invalid`);});
+                    else if(state.wizardData.selectedType==='cheatsheet') parsed.forEach((item,i)=>{if(!item.term||!item.definition)throw new Error(`Item ${i+1} invalid`);});
+                    state.wizardData.generatedContent = parsed;
+                }
+                error.textContent='';
+                await db.generated.add({fileId:state.wizardData.fileId, type:state.wizardData.selectedType, date:Date.now(), content:state.wizardData.generatedContent, title: state.wizardData.extractedText.substring(0,30)});
+                closeWizard();
+                showResult();
+            } catch(e){error.textContent='Validation failed: '+e.message;}
+        }
+        function showResult() {
+            const {selectedType} = state.wizardData;
+            if(selectedType==='learn-detail'||selectedType==='cheatsheet') showLearnView();
+            else showQuizView();
+        }
+
+        // ===== LEARN VIEW =====
+        function showLearnView() {
+            const content = document.getElementById('mainContent');
+            let htmlContent = '';
+            if(state.wizardData.selectedType==='learn-detail') htmlContent = state.wizardData.generatedContent;
+            else htmlContent = generateCheatsheetPage(state.wizardData.generatedContent);
+            state.wizardData.learnHtml = htmlContent;
+            content.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom:16px;"><h2>Generated Content</h2><div><button class="btn primary" onclick="saveLearnPdf()">Save PDF</button><button class="btn" onclick="goTo('library')">Back</button></div></div><iframe id="learnFrame" style="width:100%; height:80vh; border:1px solid var(--border); background:white;"></iframe>`;
+            document.getElementById('learnFrame').srcdoc = htmlContent;
+        }
+        async function saveLearnPdf() { const blob = await htmlToPdfBlob(state.wizardData.learnHtml); downloadBlob(blob, 'learn.pdf'); }
+
+        // ===== QUIZ VIEW =====
+        function showQuizView() {
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom:16px;"><h2>Quiz</h2><div><button class="btn primary" onclick="saveQuizPdf()">Save PDF</button><button class="btn" onclick="goTo('library')">Back</button></div></div><div id="quizContainer"><div id="questionText" style="font-size:18px; margin-bottom:10px;"></div><div id="choicesArea"></div><div style="margin-top:10px;"><button class="btn" onclick="quizPrev()">◀</button><button class="btn" onclick="quizNext()">▶</button><button class="btn" onclick="quizPeek()">Peek</button><button class="btn" onclick="quizRetry()">Retry</button><button class="btn primary" onclick="quizSubmit()">Submit</button></div></div>`;
+            state.quizState.questions = state.wizardData.generatedContent;
+            state.quizState.index = 0;
+            state.quizState.answers = {};
+            state.quizState.peeked = {};
+            state.quizState.completed = false;
+            renderQuizQuestion();
+        }
+        function renderQuizQuestion() {
+            const q = state.quizState.questions[state.quizState.index];
+            if(!q) return;
+            document.getElementById('questionText').textContent = q.question || q.text;
+            const area = document.getElementById('choicesArea');
+            area.innerHTML = '';
+            if(state.wizardData.selectedType==='mcq') {
+                q.choices.forEach((choice, idx)=>{
+                    const btn = document.createElement('button');
+                    btn.className='choice-btn';
+                    btn.textContent=choice;
+                    btn.onclick=()=>selectQuizChoice(idx);
+                    area.appendChild(btn);
+                });
+            } else if(state.wizardData.selectedType==='fill-blank') {
+                const input = document.createElement('input');
+                input.type='text'; input.placeholder='Type answer...'; input.id='quizInput';
+                input.style.cssText='width:100%;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;';
+                area.appendChild(input);
+                const btn = document.createElement('button');
+                btn.textContent='Check'; btn.className='btn primary'; btn.onclick=checkFillAnswer; area.appendChild(btn);
+            }
+        }
+        function selectQuizChoice(idx) {
+            const q = state.quizState.questions[state.quizState.index];
+            if(state.quizState.completed) return;
+            state.quizState.answers[q.id] = idx;
+            const btns = document.querySelectorAll('#choicesArea .choice-btn');
+            btns.forEach(b=>{b.style.borderColor='';b.style.background='var(--panel)';});
+            btns[idx].style.borderColor='var(--accent)';
+            btns[idx].style.background='var(--accent)';
+            btns[idx].style.color='white';
+        }
+        function quizSubmit() {
+            const q = state.quizState.questions[state.quizState.index];
+            const sel = state.quizState.answers[q.id];
+            if(sel===undefined) return;
+            const btns = document.querySelectorAll('#choicesArea .choice-btn');
+            btns.forEach(b=>{b.style.background='var(--panel)';b.style.color='var(--text)';});
+            if(sel===q.correct){ btns[sel].style.background='var(--success)'; flash('#28a745'); setTimeout(quizNext,1000); }
+            else { btns[sel].style.background='var(--danger)'; btns[q.correct].style.background='var(--success)'; }
+        }
+        function quizPeek() { const q = state.quizState.questions[state.quizState.index]; if(state.wizardData.selectedType==='mcq'){ const btns = document.querySelectorAll('#choicesArea .choice-btn'); btns[q.correct].style.background='var(--success)'; } else alert('Answer: '+q.correct); }
+        function quizNext() { if(state.quizState.index<state.quizState.questions.length-1){state.quizState.index++;renderQuizQuestion();} else alert('Quiz done!'); }
+        function quizPrev() { if(state.quizState.index>0){state.quizState.index--;renderQuizQuestion();} }
+        function quizRetry() { const wrong=state.quizState.questions.filter(q=>state.quizState.answers[q.id]!==q.correct); if(!wrong.length){alert('All correct');return;} state.quizState.questions=wrong; state.quizState.index=0; renderQuizQuestion(); }
+        function checkFillAnswer() { const input=document.getElementById('quizInput'); const user=input.value.trim().toLowerCase(); const q=state.quizState.questions[state.quizState.index]; const correct=q.correct.toLowerCase(); const alts=(q.acceptableAlternatives||[]).map(a=>a.toLowerCase()); if(user===correct||alts.includes(user)){flash('#28a745');setTimeout(quizNext,1000);}else{alert('Incorrect. Correct: '+q.correct);state.quizState.answers[q.id]=user;} }
+        async function saveQuizPdf() { const html=generateQuizHTML(); const blob=await htmlToPdfBlob(html); downloadBlob(blob,'quiz.pdf'); }
+
+        // ===== AUTOMATION =====
+        async function renderAutomation(container) {
+            const presets = await db.presets.toArray();
+            const tasks = await db.tasks.toArray();
+            container.innerHTML = `
+                <h2>Automation</h2>
+                <div style="display:flex; gap:8px; margin-bottom:16px;">
+                    <button class="btn primary" onclick="createPresetModal()">New Preset</button>
+                    <button class="btn" onclick="createTask()">New Scheduled Task</button>
+                </div>
+                <h3>Presets</h3>
+                <table><thead><tr><th>Name</th><th>Type</th><th>Qty</th><th>Action</th></tr></thead><tbody>
+                ${presets.map(p=>`<tr><td>${esc(p.name)}</td><td>${p.type}</td><td>${p.quantity}</td><td><button class="btn" onclick="usePreset(${p.id})">Use</button></td></tr>`).join('') || '<tr><td colspan="4">No presets</td></tr>'}
+                </tbody></table>
+                <h3>Scheduled Tasks</h3>
+                <table><thead><tr><th>Name</th><th>Due</th><th>Status</th><th>Action</th></tr></thead><tbody>
+                ${tasks.map(t=>`<tr><td>${esc(t.name)}</td><td>${new Date(t.due).toLocaleString()}</td><td>${t.status}</td><td><button class="btn" onclick="toggleTask(${t.id})">Toggle</button></td></tr>`).join('') || '<tr><td colspan="4">No tasks</td></tr>'}
+                </tbody></table>
+            `;
+        }
+        function createPresetModal() {
+            const name=prompt('Preset name:');
+            const type=prompt('Type (learn-detail, cheatsheet, mcq, fill-blank):');
+            const qty=parseInt(prompt('Quantity:'));
+            if(name&&type&&qty) db.presets.add({name,type,quantity:qty}).then(()=>renderAutomation(document.getElementById('mainContent')));
+        }
+        async function usePreset(id) {
+            const p = await db.presets.get(id);
+            openWizard();
+            state.wizardData.selectedType = p.type;
+            state.wizardData.quantity = p.quantity;
+            state.wizardStep = 1;
+            renderWizardStep();
+        }
+        function createTask() {
+            const name = prompt('Task name:');
+            const due = prompt('Due date (YYYY-MM-DD):');
+            if(name && due) db.tasks.add({name, due:new Date(due).getTime(), status:'pending'}).then(()=>renderAutomation(document.getElementById('mainContent')));
+        }
+        async function toggleTask(id) {
+            const t = await db.tasks.get(id);
+            t.status = t.status === 'pending' ? 'done' : 'pending';
+            await db.tasks.put(t);
+            renderAutomation(document.getElementById('mainContent'));
+        }
+
+        // ===== PROCESSING =====
+        async function renderProcessing(container) {
+            const gen = await db.generated.toArray();
+            container.innerHTML = `<h2>Processing History</h2><table><thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Action</th></tr></thead><tbody>${gen.map(g=>`<tr><td>${new Date(g.date).toLocaleString()}</td><td>${esc(g.type)}</td><td>${esc(g.title||'')}</td><td><button class="btn" onclick="viewGenerated(${g.id})">View</button></td></tr>`).join('')||'<tr><td colspan="4">None</td></tr>'}</tbody></table>`;
+        }
+        async function viewGenerated(id) {
+            const g = await db.generated.get(id);
+            state.wizardData.selectedType = g.type;
+            state.wizardData.generatedContent = g.content;
+            if(g.type==='learn-detail') state.wizardData.learnHtml=g.content;
+            if(g.type==='cheatsheet') state.wizardData.learnHtml=generateCheatsheetPage(g.content);
+            showResult();
+        }
+
+        // ===== HELP =====
+        function renderHelp(container) {
+            container.innerHTML = `<h2>Help & Docs</h2><p>This is a comprehensive print management system. Use the wizard to create quizzes, lessons, and cheatsheets.</p><h3>Keyboard shortcuts:</h3><ul><li>Ctrl+K - Command palette</li><li>Ctrl+N - New wizard</li><li>Ctrl+L - Library</li></ul><h3>FAQ:</h3><div id="faq"></div>`;
+            document.getElementById('faq').innerHTML = `<details><summary>How do I upload?</summary><p>Click New Wizard and upload a file.</p></details><details><summary>How do I generate?</summary><p>Download prompt, use AI, paste output.</p></details>`;
+        }
+
+        // ===== ROADMAP =====
+        function renderRoadmap(container) {
+            container.innerHTML = `<h2>Feature Roadmap</h2><p>Full list of planned features. Select one to view details.</p><ul>${featuresList.map(f=>`<li>${f}</li>`).join('')}</ul>`;
+        }
+        const featuresList = ["User auth", "Bulk operations", "AI API integration", "OCR", "Team collaboration", "Version history", "Advanced search", "Mobile PWA", "Offline mode", "Custom themes", "Scheduled tasks", "Charts & analytics", "Notifications", "File encryption", "Shareable links", "Email integration", "Webhooks", "Embedded editors", "Multi-language", "Accessibility suite"];
+
+        // ===== COMMAND PALETTE =====
+        const commands = [
+            { label: 'Open Wizard', action: () => openWizard() },
+            { label: 'Go to Dashboard', action: () => goTo('dashboard') },
+            { label: 'Go to Library', action: () => goTo('library') },
+            { label: 'Go to Processing', action: () => goTo('processing') },
+            { label: 'Go to Automation', action: () => goTo('automation') },
+            { label: 'Go to Roadmap', action: () => goTo('roadmap') },
+            { label: 'Toggle Theme', action: () => toggleTheme() }
+        ];
+        function openCommandPalette() { const p=document.getElementById('commandPalette'); p.style.display='block'; document.getElementById('commandInput').value=''; filterCommands(''); document.getElementById('commandInput').focus(); }
+        function filterCommands(query) { const list=document.getElementById('commandList'); const filtered=commands.filter(c=>c.label.toLowerCase().includes(query.toLowerCase())); list.innerHTML=filtered.map((c,idx)=>`<div class="command-item" onclick="executeCommand(${idx})">${c.label}</div>`).join(''); }
+        function executeCommand(idx) { const c=commands[idx]; document.getElementById('commandPalette').style.display='none'; c.action(); }
+        document.addEventListener('click', e => { const p=document.getElementById('commandPalette'); if(!p.contains(e.target)) p.style.display='none'; });
+
+        // ===== GLOBAL SEARCH =====
+        function globalSearch(q) {
+            if(!q) { renderPage(state.currentPage); return; }
+            db.files.where('name').startsWithIgnoreCase(q).toArray().then(files => {
+                const c = document.getElementById('mainContent');
+                c.innerHTML = `<h2>Search Results</h2><table><thead><tr><th>Name</th><th>Type</th><th>Action</th></tr></thead><tbody>${files.map(f=>`<tr><td>${esc(f.name)}</td><td>${esc(f.type)}</td><td><button class="btn" onclick="openWizardFromFile(${f.id})">Use</button></td></tr>`).join('')||'<tr><td colspan="3">No results</td></tr>'}</tbody></table>`;
+            });
+        }
+
+        // ===== KEYBOARD =====
+        document.addEventListener('keydown', e => {
+            if(e.ctrlKey && e.key==='k') { e.preventDefault(); openCommandPalette(); }
+            if(e.ctrlKey && e.key==='n') { e.preventDefault(); openWizard(); }
+            if(e.ctrlKey && e.key==='l') { e.preventDefault(); goTo('library'); }
+        });
+
+        // ===== PDF HELPERS =====
+        async function htmlToPdfBlob(html) { const div=document.createElement('div'); div.innerHTML=html; div.style.width='800px'; div.style.padding='20px'; document.body.appendChild(div); const opt={margin:[0.5,0.5,0.5,0.5],filename:'output.pdf',image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'in',format:'letter',orientation:'portrait'}}; const blob=await html2pdf().set(opt).from(div).outputPdf('blob'); div.remove(); return blob; }
+        function downloadBlob(blob, filename) { const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); }
+
+        // ===== CHEATSHEET CSS =====
+        const cheatsheetCSS = `.cheatsheet-table{width:100%;border-collapse:collapse;font-family:sans-serif;font-size:12px;} .cheatsheet-table th{background:#1e1f2a;color:#2dd4bf;padding:8px;text-align:left;border-bottom:1px solid #333;} .cheatsheet-table td{padding:8px;border-bottom:1px solid #e5e7eb;vertical-align:top;} .term{font-weight:bold;} .def::before{content:"= ";} .example{font-style:italic;} .example::before{content:"e.g. ";} .memory::before{content:"• ";}`;
+        function generateCheatsheetBody(items) {
+            let html='<table class="cheatsheet-table"><thead><tr><th>Term</th><th>Definition</th><th>Example</th><th>Memory</th><th>Diagram</th></tr></thead><tbody><tr class="notes-row"><td colspan="5">&nbsp;</td></tr>';
+            items.forEach(item=>{
+                html+=`<tr><td><span class="term">▸ ${esc(item.term)}</span></td><td><span class="def">${esc(item.definition||'')}</span></td><td><span class="example">${esc(item.example||'')}</span></td><td><span class="memory">${esc(item.memory||'')}</span></td><td></td></tr>`;
+                html+='<tr class="notes-row"><td colspan="5">&nbsp;</td></tr>';
+                if(item.diagram){ html+='<tr class="diagram-row"><td colspan="5"><pre>'+esc(item.diagram)+'</pre></td></tr>'; html+='<tr class="notes-row"><td colspan="5">&nbsp;</td></tr>'; }
+            });
+            return html+'</tbody></table>';
+        }
+        function generateCheatsheetPage(items) { return `<!DOCTYPE html><html><head><style>${cheatsheetCSS}</style></head><body>${generateCheatsheetBody(items)}</body></html>`; }
+
+        // ===== INIT =====
+        async function init() {
+            applyTheme();
+            if(!localStorage.getItem('printms_user')) {
+                // Mock auth
+                const user = { name: 'Guest', role: 'viewer' };
+                await db.auth.put({ key: 'current', ...user });
+                localStorage.setItem('printms_user', JSON.stringify(user));
+            } else {
+                const user = JSON.parse(localStorage.getItem('printms_user'));
+                state.user = user;
+            }
+            goTo('dashboard');
+            // Onboarding
+            if(!localStorage.getItem('printms_onboarded')) {
+                setTimeout(() => alert('Welcome! Use Ctrl+K for commands.'), 1000);
+                localStorage.setItem('printms_onboarded', 'true');
+            }
+        }
+        init();
+    </script>
+</body>
+</html>
