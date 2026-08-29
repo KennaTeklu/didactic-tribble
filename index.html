@@ -459,9 +459,14 @@ function hideTooltip(el, delay = 0) {
             const text = document.getElementById('progressText');
             const cnt = document.getElementById('charCount');
             fill.style.width = '10%';
-            text.textContent = 'Extracting...';
+            text.textContent = 'Starting...';
+            cnt.textContent = 'Characters: 0';
             try {
-                const extracted = await extractText(file);
+                const extracted = await extractText(file, (msg, pct, chars) => {
+                    fill.style.width = pct + '%';
+                    text.textContent = msg;
+                    cnt.textContent = `Characters: ${chars.toLocaleString()}`;
+                });
                 fill.style.width = '100%';
                 text.textContent = 'Extraction complete!';
                 cnt.textContent = `Characters: ${extracted.length.toLocaleString()}`;
@@ -474,18 +479,33 @@ function hideTooltip(el, delay = 0) {
                 if(nextBtn) nextBtn.disabled = false;
             } catch(err) { alert('Error: '+err.message); }
         }
-        async function extractText(file) {
+        async function extractText(file, onProgress) {
             if(file.type==='application/pdf'||file.name.endsWith('.pdf')) {
                 const ab = await file.arrayBuffer();
                 const pdf = await pdfjsLib.getDocument({data:ab}).promise;
                 let t='';
-                for(let i=1;i<=pdf.numPages;i++){ const p=await pdf.getPage(i); const c=await p.getTextContent(); t+=c.items.map(x=>x.str).join(' ')+'\n'; }
+                for(let i=1;i<=pdf.numPages;i++){ 
+                    const p=await pdf.getPage(i); 
+                    const c=await p.getTextContent(); 
+                    t+=c.items.map(x=>x.str).join(' ')+'\n'; 
+                    if(onProgress) onProgress(`Extracting page ${i}/${pdf.numPages}`, (i/pdf.numPages)*100, t.length);
+                }
                 return t.trim();
-            } else if(file.name.endsWith('.txt')) return (await file.text()).trim();
-            else if(file.name.endsWith('.docx')) { const ab=await file.arrayBuffer(); const r=await mammoth.convertToHtml({arrayBuffer:ab}); return r.value.replace(/<[^>]*>/g,' ').trim(); }
-            else return "Unsupported";
+            } else if(file.name.endsWith('.txt')) {
+                if(onProgress) onProgress('Reading text...', 50, 0);
+                const text = await file.text();
+                if(onProgress) onProgress('Text read', 100, text.length);
+                return text.trim();
+            } else if(file.name.endsWith('.docx')) { 
+                if(onProgress) onProgress('Converting DOCX...', 40, 0);
+                const ab=await file.arrayBuffer(); 
+                const r=await mammoth.convertToHtml({arrayBuffer:ab}); 
+                if(onProgress) onProgress('DOCX converted', 100, r.value.length);
+                return r.value.replace(/<[^>]*>/g,' ').trim(); 
+            } else return "Unsupported";
         }
         function selectType(t) { state.wizardData.selectedType = t; document.querySelectorAll('.type-card').forEach(c=>c.classList.remove('selected')); document.querySelector(`.type-card[data-type="${t}"]`)?.classList.add('selected'); }
+        function wizardGoToStep2() { state.wizardStep = 2; renderWizardStep(); }
         function wizardGoToStep2() { state.wizardStep = 2; renderWizardStep(); }
         function wizardNext2() { if(!state.wizardData.selectedType){alert('Select type');return;} state.wizardStep=3; renderWizardStep(); }
         function setQty(q) { state.wizardData.quantity=q; document.getElementById('customQty').value=q; }
