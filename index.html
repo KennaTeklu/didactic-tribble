@@ -107,6 +107,7 @@
             <button class="tool-btn" onclick="goTo('editors')"><i class="fas fa-edit"></i> Editors</button>
             <button class="tool-btn" onclick="goTo('settings')"><i class="fas fa-cog"></i> Settings</button>
             <button class="tool-btn" onclick="goTo('subjects')"><i class="fas fa-book"></i> Subjects</button>
+            <button class="tool-btn" onclick="goTo('generated')"><i class="fas fa-file-alt"></i> Generated</button>
             <button class="tool-btn" onclick="goTo('roadmap')"><i class="fas fa-map"></i> Roadmap</button>
             <div class="search-box">
                 <i class="fas fa-search"></i>
@@ -119,6 +120,7 @@
                 <div class="tree-item" data-page="dashboard" onclick="goTo('dashboard')"><i class="fas fa-home"></i><span>Dashboard</span></div>
                 <div class="tree-item" data-page="library" onclick="goTo('library')"><i class="fas fa-folder"></i><span>Library</span></div>
                 <div class="tree-item" data-page="subjects" onclick="goTo('subjects')"><i class="fas fa-book"></i><span>Subjects</span></div>
+                <div class="tree-item" data-page="generated" onclick="goTo('generated')"><i class="fas fa-file-alt"></i><span>Generated</span></div>
                 <div class="tree-item" data-page="processing" onclick="goTo('processing')"><i class="fas fa-cogs"></i><span>Processing</span></div>
                 <div class="tree-item" data-page="editors" onclick="goTo('editors')"><i class="fas fa-edit"></i><span>Editors</span></div>
                 <div class="tree-item" data-page="automation" onclick="goTo('automation')"><i class="fas fa-bolt"></i><span>Automation</span></div>
@@ -204,7 +206,8 @@
             wizardStep: 1,
             wizardData: { fileId:null, extractedText:'', selectedType:null, quantity:20, generatedContent:null, learnHtml:null },
             quizState: { questions:[], index:0, answers:{}, peeked:{}, completed:false },
-            filters: { search:'', type:'all', subject:'all' }
+            filters: { search:'', type:'all', subject:'all' },
+            generatedFilter: 'all'
         };
 
         // ===== UTILITIES =====
@@ -257,7 +260,7 @@ function hideTooltip(el, delay = 0) {
         }
         function updateBreadcrumbs(page) {
             const bc = document.getElementById('breadcrumbs');
-            const names = { dashboard:'Dashboard', library:'Library', subjects:'Subjects', processing:'Processing', automation:'Automation', roadmap:'Roadmap', help:'Help' };
+            const names = { dashboard:'Dashboard', library:'Library', subjects:'Subjects', generated:'Generated', processing:'Processing', automation:'Automation', roadmap:'Roadmap', help:'Help' };
             let html = '<a href="#" onclick="goTo(\'dashboard\')">Home</a> / ';
             html += `<span>${names[page] || page}</span>`;
             document.getElementById('currentCrumb').textContent = names[page] || page;
@@ -271,6 +274,7 @@ function hideTooltip(el, delay = 0) {
             else if (page === 'processing') await renderProcessing(c);
             else if (page === 'automation') await renderAutomation(c);
             else if (page === 'subjects') await renderSubjects(c);
+            else if (page === 'generated') await renderGenerated(c);
             else if (page === 'roadmap') await renderRoadmap(c);
             else if (page === 'help') await renderHelp(c);
             else if (page === 'editors') await renderEditors(c);
@@ -521,33 +525,51 @@ function hideTooltip(el, delay = 0) {
                 `;
             }
         }
-        async function handleWizardFile(file) {
-            const pa = document.getElementById('progressArea');
-            pa.style.display = 'block';
-            const fill = document.getElementById('progressFill');
-            const text = document.getElementById('progressText');
-            const cnt = document.getElementById('charCount');
-            fill.style.width = '10%';
-            text.textContent = 'Starting...';
-            cnt.textContent = 'Characters: 0';
-            try {
-                const extracted = await extractText(file, (msg, pct, chars) => {
-                    fill.style.width = pct + '%';
-                    text.textContent = msg;
-                    cnt.textContent = `Characters: ${chars.toLocaleString()}`;
-                });
+async function handleWizardFile(file) {
+    const pa = document.getElementById('progressArea');
+    pa.style.display = 'block';
+    const fill = document.getElementById('progressFill');
+    const text = document.getElementById('progressText');
+    const cnt = document.getElementById('charCount');
+    fill.style.width = '10%';
+    text.textContent = 'Starting...';
+    cnt.textContent = 'Characters: 0';
+    try {
+        // Check for duplicate before extracting
+        const existingFiles = await db.files.toArray();
+        const sameName = existingFiles.find(f => f.name.toLowerCase() === file.name.toLowerCase());
+        if (sameName) {
+            const useExisting = confirm(`⚠️ A file named "${file.name}" already exists.\n\nWould you like to use the existing file instead?`);
+            if (useExisting) {
+                state.wizardData.fileId = sameName.id;
+                state.wizardData.extractedText = sameName.extractedText;
                 fill.style.width = '100%';
-                text.textContent = 'Extraction complete!';
-                cnt.textContent = `Characters: ${extracted.length.toLocaleString()}`;
-                state.wizardData.extractedText = extracted;
-                const id = await db.files.add({ name:file.name, type:file.type, date:Date.now(), extractedText:extracted, size: Math.round(extracted.length/1024), tags:[] });
-                state.wizardData.fileId = id;
-                toast('File extracted!');
-                // Enable Next button
+                text.textContent = 'Using existing file!';
+                cnt.textContent = `Characters: ${sameName.extractedText.length.toLocaleString()}`;
+                toast('Using existing file');
                 const nextBtn = document.getElementById('wizNextBtn1');
                 if(nextBtn) nextBtn.disabled = false;
-            } catch(err) { alert('Error: '+err.message); }
+                return;
+            }
         }
+
+        const extracted = await extractText(file, (msg, pct, chars) => {
+            fill.style.width = pct + '%';
+            text.textContent = msg;
+            cnt.textContent = `Characters: ${chars.toLocaleString()}`;
+        });
+        fill.style.width = '100%';
+        text.textContent = 'Extraction complete!';
+        cnt.textContent = `Characters: ${extracted.length.toLocaleString()}`;
+        state.wizardData.extractedText = extracted;
+        const id = await db.files.add({ name:file.name, type:file.type, date:Date.now(), extractedText:extracted, size: Math.round(extracted.length/1024), tags:[] });
+        state.wizardData.fileId = id;
+        toast('File extracted!');
+        // Enable Next button
+        const nextBtn = document.getElementById('wizNextBtn1');
+        if(nextBtn) nextBtn.disabled = false;
+    } catch(err) { alert('Error: '+err.message); }
+}
         async function extractText(file, onProgress) {
             if(file.type==='application/pdf'||file.name.endsWith('.pdf')) {
                 const ab = await file.arrayBuffer();
@@ -593,9 +615,12 @@ function hideTooltip(el, delay = 0) {
             const blob = new Blob([p], {type:'text/plain'});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href=url; a.download = `ai_prompt_${Date.now()}.txt`; a.click();
+            a.href=url;
+            // Use a fixed filename: ai_prompt.txt (replaces existing)
+            a.download = 'ai_prompt.txt';
+            a.click();
             URL.revokeObjectURL(url);
-            document.getElementById('dlStatus').textContent = 'Downloaded';
+            document.getElementById('dlStatus').textContent = 'Downloaded (ai_prompt.txt)';
         }
         async function validateWizardOutput() {
             const raw = document.getElementById('aiOutput').value.trim();
@@ -636,7 +661,11 @@ function hideTooltip(el, delay = 0) {
             content.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom:16px;"><h2>Generated Content</h2><div><button class="btn primary" onclick="saveLearnPdf()">Save PDF</button><button class="btn" onclick="goTo('library')">Back</button></div></div><iframe id="learnFrame" style="width:100%; height:80vh; border:1px solid var(--border); background:white;"></iframe>`;
             document.getElementById('learnFrame').srcdoc = htmlContent;
         }
-        async function saveLearnPdf() { const blob = await htmlToPdfBlob(state.wizardData.learnHtml); downloadBlob(blob, 'learn.pdf'); }
+async function saveLearnPdf() {
+    const blob = await htmlToPdfBlob(state.wizardData.learnHtml);
+    const filename = generateUniqueFilename('learn');
+    downloadBlob(blob, filename);
+}
 
         // ===== QUIZ VIEW =====
         function generateQuizHTML() {
@@ -854,19 +883,75 @@ function hideTooltip(el, delay = 0) {
             }
         }
 
+        // ===== GENERATED =====
+        async function renderGenerated(container) {
+            const generatedItems = await db.generated.toArray();
+            const filter = state.generatedFilter;
+            const filtered = filter === 'all' ? generatedItems : generatedItems.filter(g => g.type === filter);
+            container.innerHTML = `
+                <h2>Generated Content</h2>
+                <div style="display:flex; gap:8px; margin-bottom:16px;">
+                    ${['all','learn-detail','cheatsheet','mcq','fill-blank'].map(t => `
+                        <button class="btn ${filter === t ? 'primary' : ''}" onclick="setGeneratedFilter('${t}')">${t === 'all' ? 'All' : t.replace('-',' ')}</button>
+                    `).join('')}
+                </div>
+                <div class="table-wrapper"><table>
+                    <thead><tr><th>Title</th><th>Type</th><th>Date</th><th>Actions</th></tr></thead>
+                    <tbody>
+                        ${filtered.map(g => `<tr>
+                            <td>${esc(g.title || '')}</td>
+                            <td>${esc(g.type)}</td>
+                            <td>${new Date(g.date).toLocaleString()}</td>
+                            <td>
+                                <button class="btn" onclick="viewGenerated(${g.id})">View</button>
+                                <button class="btn" onclick="downloadGeneratedPdf(${g.id})">Save PDF</button>
+                            </td>
+                        </tr>`).join('') || '<tr><td colspan="4">No generated content</td></tr>'}
+                    </tbody>
+                </table></div>
+            `;
+        }
+
+        function setGeneratedFilter(filter) {
+            state.generatedFilter = filter;
+            renderGenerated(document.getElementById('mainContent'));
+        }
+
         // ===== PROCESSING =====
         async function renderProcessing(container) {
             const gen = await db.generated.toArray();
-            container.innerHTML = `<h2>Processing History</h2><div class="table-wrapper"><table><thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Action</th></tr></thead><tbody>${gen.map(g=>`<tr><td>${new Date(g.date).toLocaleString()}</td><td>${esc(g.type)}</td><td>${esc(g.title||'')}</td><td><button class="btn" onclick="viewGenerated(${g.id})">View</button></td></tr>`).join('')||'<tr><td colspan="4">None</td></tr>'}</tbody></table></div>`;
+            container.innerHTML = `<h2>Processing History</h2><div class="table-wrapper"><table><thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Action</th></tr></thead><tbody>${gen.map(g=>`<tr><td>${new Date(g.date).toLocaleString()}</td><td>${esc(g.type)}</td><td>${esc(g.title||'')}</td><td><button class="btn" onclick="viewGenerated(${g.id})">View</button><button class="btn" onclick="downloadGeneratedPdf(${g.id})">Save PDF</button></td></tr>`).join('')||'<tr><td colspan="4">None</td></tr>'}</tbody></table></div>`;
         }
         async function viewGenerated(id) {
-            const g = await db.generated.get(id);
-            state.wizardData.selectedType = g.type;
-            state.wizardData.generatedContent = g.content;
-            if(g.type==='learn-detail') state.wizardData.learnHtml=g.content;
-            if(g.type==='cheatsheet') state.wizardData.learnHtml=generateCheatsheetPage(g.content);
-            showResult();
-        }
+    const g = await db.generated.get(id);
+    state.wizardData.selectedType = g.type;
+    state.wizardData.generatedContent = g.content;
+    if(g.type==='learn-detail') state.wizardData.learnHtml=g.content;
+    if(g.type==='cheatsheet') state.wizardData.learnHtml=generateCheatsheetPage(g.content);
+    showResult();
+}
+
+async function downloadGeneratedPdf(id) {
+    const g = await db.generated.get(id);
+    if (!g) return;
+    let htmlContent = '';
+    if (g.type === 'learn-detail') {
+        htmlContent = g.content;
+    } else if (g.type === 'cheatsheet') {
+        htmlContent = generateCheatsheetPage(g.content);
+    } else if (g.type === 'mcq' || g.type === 'fill-blank') {
+        // Reuse quiz HTML generation
+        // But state.quizState.questions isn't set here. We need to create temporary quiz state.
+        const prevQuestions = state.quizState.questions;
+        state.quizState.questions = g.content;
+        htmlContent = generateQuizHTML();
+        state.quizState.questions = prevQuestions;
+    }
+    if (htmlContent) {
+        const blob = await htmlToPdfBlob(htmlContent);
+        downloadBlob(blob, (g.title || 'generated') + '.pdf');
+    }
+}
 
         // ===== EDITORS =====
         async function renderEditors(container) {
@@ -946,24 +1031,53 @@ function hideTooltip(el, delay = 0) {
         });
 
         // ===== PDF HELPERS =====
-        async function htmlToPdfBlob(html) {
-    // Inject clean PDF styles (white background, black text, keep colors)
-    const pdfStyle = `
+async function htmlToPdfBlob(html) {
+    // Inject print-specific CSS to fix diagram alignment, size, and page breaks
+    const printCSS = `
         <style>
-            body { background: #fff !important; color: #000 !important; }
-            * { background-color: transparent !important; }
-            .cheatsheet-table { background: #fff !important; color: #000 !important; }
-            .cheatsheet-table th { background: #f0f0f0 !important; color: #000 !important; border: 1px solid #ccc !important; }
-            .cheatsheet-table td { background: #fff !important; color: #000 !important; border: 1px solid #ccc !important; }
-            .term { color: #000 !important; }
-            .def, .example, .memory { color: #000 !important; }
-            .diagram-row pre { color: #000 !important; background: #fff !important; }
-            .rounds input[type="checkbox"] { width: 14px !important; height: 14px !important; border: 1px solid #000 !important; background: #fff !important; }
+            /* Reset body margins (Chrome default 8px offset) */
+            body { margin: 0 !important; padding: 0 !important; background: #fff !important; color: #000 !important; }
+
+            /* SVG diagram fixes */
+            svg { width: 100% !important; height: auto !important; display: block !important; }
+            foreignObject { overflow: visible !important; }
+
+            /* Diagram container */
+            .diagram-row, .diagram-container {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #fff !important;
+            }
+            .diagram-row pre {
+                font-family: monospace !important;
+                font-size: 10px !important;
+                line-height: 1.2 !important;
+                color: #000 !important;
+                background: #fff !important;
+                white-space: pre !important;
+                transform: none !important;
+            }
+
+            /* Page break controls */
+            h1, h2, h3 { page-break-after: avoid !important; break-after: avoid !important; }
+            .section, figure, tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+            .chapter { page-break-before: always !important; break-before: always !important; }
+
+            /* Overall print settings */
+            @page {
+                margin: 0.5in !important;
+                size: A4 portrait;
+            }
         </style>
     `;
-    // Add style before </head> or at start of body
-    html = html.replace('</head>', pdfStyle + '</head>');
-    if (!html.includes('</head>')) html = pdfStyle + html;
+    // Insert printCSS before </head> or at start of body
+    html = html.replace('</head>', printCSS + '</head>');
+    if (!html.includes('</head>')) html = printCSS + html;
 
     const div = document.createElement('div');
     div.innerHTML = html;
@@ -975,7 +1089,34 @@ function hideTooltip(el, delay = 0) {
     div.remove();
     return blob;
 }
-        function downloadBlob(blob, filename) { const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); }
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+}
+
+function generateUniqueFilename(baseType) {
+    // Get topic from extractedText (first 30 chars, cleaned)
+    const topic = (state.wizardData.extractedText || 'document')
+        .substring(0, 30)
+        .replace(/[^a-zA-Z0-9]+/g, '_')
+        .replace(/^_|_$/g, '')
+        .toLowerCase();
+    const typeMap = { 'learn-detail': 'Lesson', 'cheatsheet': 'Cheatsheet', 'mcq': 'Quiz', 'fill-blank': 'FillBlank' };
+    const typeName = typeMap[state.wizardData.selectedType] || baseType;
+    
+    // Generate sequence: check existing files in DB
+    return db.files
+        .where('name')
+        .startsWith(topic + '_' + typeName + '_')
+        .count()
+        .then(count => {
+            const seq = String(count + 1).padStart(3, '0');
+            return `${topic}_${typeName}_${seq}.pdf`;
+        })
+        .catch(() => `${topic}_${typeName}_001.pdf`);
+}
 
         // ===== CHEATSHEET CSS =====
         const cheatsheetCSS = `.cheatsheet-table{width:100%;border-collapse:collapse;font-family:sans-serif;font-size:12px;} .cheatsheet-table th{background:#1e1f2a;color:#2dd4bf;padding:8px;text-align:left;border-bottom:1px solid #333;} .cheatsheet-table td{padding:8px;border-bottom:1px solid #e5e7eb;vertical-align:top;} .term{font-weight:bold;} .def::before{content:"= ";} .example{font-style:italic;} .example::before{content:"e.g. ";} .memory::before{content:"• ";}`;
