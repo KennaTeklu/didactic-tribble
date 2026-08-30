@@ -20,20 +20,21 @@
         .menubar { display: flex; background: var(--panel); border-bottom: 1px solid var(--border); padding: 4px 8px; gap: 4px; align-items: center; }
         .menu-item { padding: 6px 12px; border-radius: 4px; cursor: pointer; }
         .menu-item:hover { background: var(--panel-light); }
-        .toolbar { display: flex; background: var(--panel); border-bottom: 1px solid var(--border); padding: 6px 8px; gap: 4px; align-items: center; }
+        .toolbar { display: flex; background: var(--panel); border-bottom: 1px solid var(--border); padding: 6px 8px; gap: 4px; align-items: center; overflow-x: auto; }
         .tool-btn { background: var(--panel-light); border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
         .tool-btn:hover { background: var(--accent); color: white; }
         .tool-btn.primary { background: var(--accent); color: white; }
         .search-box { margin-left: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; display: flex; align-items: center; gap: 6px; }
         .search-box input { background: none; border: none; color: var(--text); outline: none; }
         .main { display: flex; flex: 1; overflow: hidden; }
-        .sidebar { width: 240px; background: var(--panel); border-right: 1px solid var(--border); padding: 8px; overflow-y: auto; }
+        .sidebar { width: 240px; background: var(--panel); border-right: 1px solid var(--border); padding: 8px; overflow-y: auto; overflow-x: hidden; }
         .tree-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; color: var(--text-dim); }
         .tree-item:hover { background: var(--panel-light); color: var(--text); }
         .tree-item.selected { background: var(--accent); color: white; }
-        .content { flex: 1; background: var(--bg); overflow-y: auto; padding: 20px; }
+        .content { flex: 1; background: var(--bg); overflow-y: auto; overflow-x: auto; padding: 20px; }
+        .table-wrapper { overflow-x: auto; max-width: 100%; }
         .statusbar { display: flex; justify-content: space-between; background: var(--panel); border-top: 1px solid var(--border); padding: 4px 12px; font-size: 12px; color: var(--text-dim); }
-        .breadcrumbs { padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--border); }
+        .breadcrumbs { padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--border); overflow-x: auto; white-space: nowrap; }
         .breadcrumbs a { color: var(--accent); text-decoration: none; margin-right: 5px; }
         .command-palette { position: fixed; top: 20%; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; width: 400px; max-height: 300px; overflow-y: auto; z-index: 2000; display: none; }
         .command-input { width: 100%; background: var(--panel-light); border: none; padding: 10px; color: var(--text); border-bottom: 1px solid var(--border); }
@@ -329,7 +330,7 @@ function hideTooltip(el, delay = 0) {
                 const matchesSubject = !state.filters.subject || state.filters.subject === 'all' || f.subjectId === parseInt(state.filters.subject);
                 return matchesSearch && matchesType && matchesSubject;
             });
-       const tableHtml = `<table><thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Date</th><th>Tags</th><th>Subject</th><th>Actions</th></tr></thead><tbody>
+                const tableHtml = `<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Date</th><th>Tags</th><th>Subject</th><th>Actions</th></tr></thead><tbody>
                 ${filtered.map(f=>`<tr>
                     <td>${esc(f.name)}</td><td>${esc(f.type)}</td><td>${(f.size||0)} KB</td><td>${new Date(f.date).toLocaleDateString()}</td><td>${(f.tags||[]).join(', ')}</td>
                     <td>${f.subjectId ? esc(subjectMap[f.subjectId] || '—') : '—'}</td>
@@ -341,7 +342,7 @@ function hideTooltip(el, delay = 0) {
                         <button class="btn danger" onclick="deleteFile(${f.id})">Del</button>
                     </td>
                 </tr>`).join('') || '<tr><td colspan="7">No files</td></tr>'}
-            </tbody></table>`;
+            </tbody></table></div>`;
             document.getElementById('libTable').innerHTML = tableHtml;
         }
         function libSearch(q) { state.filters.search = q; renderLibrary(document.getElementById('mainContent')); }
@@ -724,13 +725,13 @@ function hideTooltip(el, delay = 0) {
                     <button class="btn" onclick="createTask()">New Scheduled Task</button>
                 </div>
                 <h3>Presets</h3>
-                <table><thead><tr><th>Name</th><th>Type</th><th>Qty</th><th>Action</th></tr></thead><tbody>
+                <div class="table-wrapper"><table><thead><tr><th>Name</th><th>Type</th><th>Qty</th><th>Action</th></tr></thead><tbody>
                 ${presets.map(p=>`<tr><td>${esc(p.name)}</td><td>${p.type}</td><td>${p.quantity}</td><td><button class="btn" onclick="usePreset(${p.id})">Use</button></td></tr>`).join('') || '<tr><td colspan="4">No presets</td></tr>'}
-                </tbody></table>
+                </tbody></table></div>
                 <h3>Scheduled Tasks</h3>
-                <table><thead><tr><th>Name</th><th>Due</th><th>Status</th><th>Action</th></tr></thead><tbody>
+                <div class="table-wrapper"><table><thead><tr><th>Name</th><th>Due</th><th>Status</th><th>Action</th></tr></thead><tbody>
                 ${tasks.map(t=>`<tr><td>${esc(t.name)}</td><td>${new Date(t.due).toLocaleString()}</td><td>${t.status}</td><td><button class="btn" onclick="toggleTask(${t.id})">Toggle</button></td></tr>`).join('') || '<tr><td colspan="4">No tasks</td></tr>'}
-                </tbody></table>
+                </tbody></table></div>
             `;
         }
         function createPresetModal() {
@@ -773,7 +774,7 @@ function hideTooltip(el, delay = 0) {
             container.innerHTML = `
                 <h2>Subjects</h2>
                 <button class="btn primary" onclick="createSubject()">New Subject</button>
-                <table style="margin-top:16px;"><thead><tr><th>Subject</th><th>Files</th><th>Actions</th></tr></thead><tbody>
+                <div class="table-wrapper"><table style="margin-top:16px;"><thead><tr><th>Subject</th><th>Files</th><th>Actions</th></tr></thead><tbody>
                 ${subjects.map(s => {
                     const count = filesBySubject[s.id] ? filesBySubject[s.id].length : 0;
                     return `<tr><td>${esc(s.name)}</td><td>${count}</td>
@@ -783,13 +784,13 @@ function hideTooltip(el, delay = 0) {
                             <button class="btn danger" onclick="deleteSubject(${s.id})">Delete</button>
                         </td></tr>`;
                 }).join('') || '<tr><td colspan="3">No subjects yet</td></tr>'}
-                </tbody></table>
+                </tbody></table></div>
                 <h3 style="margin-top:24px;">Unassigned Files</h3>
-                <table style="margin-top:8px;"><thead><tr><th>Name</th><th>Type</th><th>Action</th></tr></thead><tbody>
+                <div class="table-wrapper"><table style="margin-top:8px;"><thead><tr><th>Name</th><th>Type</th><th>Action</th></tr></thead><tbody>
                 ${files.filter(f => !f.subjectId).map(f => `<tr><td>${esc(f.name)}</td><td>${esc(f.type)}</td>
                     <td><button class="btn" onclick="openWizardFromFile(${f.id})">Use</button>
                     <button class="btn" onclick="assignFileSubject(${f.id})">Assign to Subject</button></td></tr>`).join('') || '<tr><td colspan="3">No unassigned files</td></tr>'}
-                </tbody></table>
+                </tbody></table></div>
             `;
         }
 
@@ -856,7 +857,7 @@ function hideTooltip(el, delay = 0) {
         // ===== PROCESSING =====
         async function renderProcessing(container) {
             const gen = await db.generated.toArray();
-            container.innerHTML = `<h2>Processing History</h2><table><thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Action</th></tr></thead><tbody>${gen.map(g=>`<tr><td>${new Date(g.date).toLocaleString()}</td><td>${esc(g.type)}</td><td>${esc(g.title||'')}</td><td><button class="btn" onclick="viewGenerated(${g.id})">View</button></td></tr>`).join('')||'<tr><td colspan="4">None</td></tr>'}</tbody></table>`;
+            container.innerHTML = `<h2>Processing History</h2><div class="table-wrapper"><table><thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Action</th></tr></thead><tbody>${gen.map(g=>`<tr><td>${new Date(g.date).toLocaleString()}</td><td>${esc(g.type)}</td><td>${esc(g.title||'')}</td><td><button class="btn" onclick="viewGenerated(${g.id})">View</button></td></tr>`).join('')||'<tr><td colspan="4">None</td></tr>'}</tbody></table></div>`;
         }
         async function viewGenerated(id) {
             const g = await db.generated.get(id);
