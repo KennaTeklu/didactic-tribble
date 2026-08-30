@@ -105,6 +105,7 @@
             <button class="tool-btn" onclick="goTo('automation')"><i class="fas fa-bolt"></i> Automation</button>
             <button class="tool-btn" onclick="goTo('editors')"><i class="fas fa-edit"></i> Editors</button>
             <button class="tool-btn" onclick="goTo('settings')"><i class="fas fa-cog"></i> Settings</button>
+            <button class="tool-btn" onclick="goTo('subjects')"><i class="fas fa-book"></i> Subjects</button>
             <button class="tool-btn" onclick="goTo('roadmap')"><i class="fas fa-map"></i> Roadmap</button>
             <div class="search-box">
                 <i class="fas fa-search"></i>
@@ -116,6 +117,7 @@
             <div class="sidebar" id="sidebar">
                 <div class="tree-item" data-page="dashboard" onclick="goTo('dashboard')"><i class="fas fa-home"></i><span>Dashboard</span></div>
                 <div class="tree-item" data-page="library" onclick="goTo('library')"><i class="fas fa-folder"></i><span>Library</span></div>
+                <div class="tree-item" data-page="subjects" onclick="goTo('subjects')"><i class="fas fa-book"></i><span>Subjects</span></div>
                 <div class="tree-item" data-page="processing" onclick="goTo('processing')"><i class="fas fa-cogs"></i><span>Processing</span></div>
                 <div class="tree-item" data-page="editors" onclick="goTo('editors')"><i class="fas fa-edit"></i><span>Editors</span></div>
                 <div class="tree-item" data-page="automation" onclick="goTo('automation')"><i class="fas fa-bolt"></i><span>Automation</span></div>
@@ -184,11 +186,12 @@
     <script>
         // ===== DATABASE (Fixed versioning) =====
         const db = new Dexie('PrintMSDB');
-        db.version(2).stores({
-            files: '++id, name, type, date, extractedText, size, tags',
+        db.version(3).stores({
+            files: '++id, name, type, date, extractedText, size, tags, subjectId',
             generated: '++id, fileId, type, date, content, title',
             presets: '++id, name, type, quantity',
             tasks: '++id, name, due, status',
+            subjects: '++id, name, date',
             auth: 'key'
         });
 
@@ -200,7 +203,7 @@
             wizardStep: 1,
             wizardData: { fileId:null, extractedText:'', selectedType:null, quantity:20, generatedContent:null, learnHtml:null },
             quizState: { questions:[], index:0, answers:{}, peeked:{}, completed:false },
-            filters: { search:'', type:'all' }
+            filters: { search:'', type:'all', subject:'all' }
         };
 
         // ===== UTILITIES =====
@@ -253,7 +256,7 @@ function hideTooltip(el, delay = 0) {
         }
         function updateBreadcrumbs(page) {
             const bc = document.getElementById('breadcrumbs');
-            const names = { dashboard:'Dashboard', library:'Library', processing:'Processing', automation:'Automation', roadmap:'Roadmap', help:'Help' };
+            const names = { dashboard:'Dashboard', library:'Library', subjects:'Subjects', processing:'Processing', automation:'Automation', roadmap:'Roadmap', help:'Help' };
             let html = '<a href="#" onclick="goTo(\'dashboard\')">Home</a> / ';
             html += `<span>${names[page] || page}</span>`;
             document.getElementById('currentCrumb').textContent = names[page] || page;
@@ -266,6 +269,7 @@ function hideTooltip(el, delay = 0) {
             else if (page === 'library') await renderLibrary(c);
             else if (page === 'processing') await renderProcessing(c);
             else if (page === 'automation') await renderAutomation(c);
+            else if (page === 'subjects') await renderSubjects(c);
             else if (page === 'roadmap') await renderRoadmap(c);
             else if (page === 'help') await renderHelp(c);
             else if (page === 'editors') await renderEditors(c);
@@ -302,27 +306,47 @@ function hideTooltip(el, delay = 0) {
                         <option value="txt">TXT</option>
                         <option value="docx">DOCX</option>
                     </select>
+                    <select id="libSubjectFilter" onchange="libSubjectFilterChange(this.value)" style="background:var(--panel); border:1px solid var(--border); color:var(--text); padding:6px;">
+                        <option value="all">All subjects</option>
+                    </select>
                     <button class="btn primary" onclick="openWizard()">Add</button>
                 </div>
                 <div id="libTable"><div class="skeleton"></div></div>
             `;
             const files = await db.files.toArray();
+            const subjectMap = {};
+            subjects.forEach(s => subjectMap[s.id] = s.name);
+            // Populate subject dropdown
+            const subjectSelect = document.getElementById('libSubjectFilter');
+            if (subjectSelect) {
+                subjectSelect.innerHTML = '<option value="all">All subjects</option>' + subjects.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+                if (state.filters.subject) subjectSelect.value = state.filters.subject;
+            }
             const filtered = files.filter(f => {
                 const q = state.filters.search.toLowerCase();
                 const matchesSearch = !q || f.name.toLowerCase().includes(q);
                 const matchesType = state.filters.type === 'all' || f.type === state.filters.type;
-                return matchesSearch && matchesType;
+                const matchesSubject = !state.filters.subject || state.filters.subject === 'all' || f.subjectId === parseInt(state.filters.subject);
+                return matchesSearch && matchesType && matchesSubject;
             });
-            const tableHtml = `<table><thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Date</th><th>Tags</th><th>Actions</th></tr></thead><tbody>
+       const tableHtml = `<table><thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Date</th><th>Tags</th><th>Subject</th><th>Actions</th></tr></thead><tbody>
                 ${filtered.map(f=>`<tr>
                     <td>${esc(f.name)}</td><td>${esc(f.type)}</td><td>${(f.size||0)} KB</td><td>${new Date(f.date).toLocaleDateString()}</td><td>${(f.tags||[]).join(', ')}</td>
-                    <td><button class="btn" onclick="openWizardFromFile(${f.id})">Use</button><button class="btn" onclick="viewFile(${f.id})">View</button><button class="btn" onclick="tagFile(${f.id})">Tag</button><button class="btn danger" onclick="deleteFile(${f.id})">Del</button></td>
-                </tr>`).join('') || '<tr><td colspan="6">No files</td></tr>'}
+                    <td>${f.subjectId ? esc(subjectMap[f.subjectId] || '—') : '—'}</td>
+                    <td>
+                        <button class="btn" onclick="openWizardFromFile(${f.id})">Use</button>
+                        <button class="btn" onclick="viewFile(${f.id})">View</button>
+                        <button class="btn" onclick="tagFile(${f.id})">Tag</button>
+                        <button class="btn" onclick="assignFileSubject(${f.id})">Subject</button>
+                        <button class="btn danger" onclick="deleteFile(${f.id})">Del</button>
+                    </td>
+                </tr>`).join('') || '<tr><td colspan="7">No files</td></tr>'}
             </tbody></table>`;
             document.getElementById('libTable').innerHTML = tableHtml;
         }
         function libSearch(q) { state.filters.search = q; renderLibrary(document.getElementById('mainContent')); }
         function libFilter(type) { state.filters.type = type; renderLibrary(document.getElementById('mainContent')); }
+        function libSubjectFilterChange(subjectId) { state.filters.subject = subjectId; renderLibrary(document.getElementById('mainContent')); }
         async function viewFile(id) { const f = await db.files.get(id); if(f) alert(`File: ${f.name}\n\n${f.extractedText.substring(0,500)}...`); }
         async function deleteFile(id) { if(confirm('Delete file?')) { await db.files.delete(id); renderLibrary(document.getElementById('mainContent')); } }
         async function tagFile(id) {
@@ -332,6 +356,50 @@ function hideTooltip(el, delay = 0) {
                 f.tags = tags.split(',').map(t=>t.trim()).filter(Boolean);
                 await db.files.put(f);
                 renderLibrary(document.getElementById('mainContent'));
+            }
+        }
+
+        async function assignFileSubject(id) {
+            const f = await db.files.get(id);
+            const subjects = await db.subjects.toArray();
+            if (subjects.length === 0 && !f.subjectId) {
+                alert('Create a subject first. Go to Subjects page.');
+                return;
+            }
+            if (f.subjectId) {
+                const currentSubject = await db.subjects.get(f.subjectId);
+                const options = subjects.map((s, i) => `${i}: ${s.name}`).join('\n');
+                const input = prompt(`Currently: ${currentSubject?.name || 'None'}\nChoose new subject (by index) or type 'none' to unassign:\n${options}\n\n(Type 'none' to remove from subject)`);
+                if (input !== null) {
+                    if (input.toLowerCase() === 'none') {
+                        f.subjectId = null;
+                        await db.files.put(f);
+                        toast('Unassigned from subject');
+                        renderLibrary(document.getElementById('mainContent'));
+                        return;
+                    }
+                    const idx = parseInt(input);
+                    const s = subjects[idx];
+                    if (s) {
+                        f.subjectId = s.id;
+                        await db.files.put(f);
+                        toast(`Assigned to "${s.name}"`);
+                        renderLibrary(document.getElementById('mainContent'));
+                    }
+                }
+            } else {
+                const options = subjects.map((s, i) => `${i}: ${s.name}`).join('\n');
+                const input = prompt(`Choose subject (by index):\n${options}`);
+                if (input !== null) {
+                    const idx = parseInt(input);
+                    const s = subjects[idx];
+                    if (s) {
+                        f.subjectId = s.id;
+                        await db.files.put(f);
+                        toast(`Assigned to "${s.name}"`);
+                        renderLibrary(document.getElementById('mainContent'));
+                    }
+                }
             }
         }
         async function openWizardFromFile(id) {
@@ -691,6 +759,100 @@ function hideTooltip(el, delay = 0) {
             renderAutomation(document.getElementById('mainContent'));
         }
 
+        // ===== SUBJECTS =====
+        async function renderSubjects(container) {
+            const subjects = await db.subjects.toArray();
+            const files = await db.files.toArray();
+            const filesBySubject = {};
+            files.forEach(f => {
+                if (f.subjectId) {
+                    if (!filesBySubject[f.subjectId]) filesBySubject[f.subjectId] = [];
+                    filesBySubject[f.subjectId].push(f);
+                }
+            });
+            container.innerHTML = `
+                <h2>Subjects</h2>
+                <button class="btn primary" onclick="createSubject()">New Subject</button>
+                <table style="margin-top:16px;"><thead><tr><th>Subject</th><th>Files</th><th>Actions</th></tr></thead><tbody>
+                ${subjects.map(s => {
+                    const count = filesBySubject[s.id] ? filesBySubject[s.id].length : 0;
+                    return `<tr><td>${esc(s.name)}</td><td>${count}</td>
+                        <td>
+                            <button class="btn" onclick="viewSubjectFiles(${s.id})">View Files</button>
+                            <button class="btn" onclick="renameSubject(${s.id})">Rename</button>
+                            <button class="btn danger" onclick="deleteSubject(${s.id})">Delete</button>
+                        </td></tr>`;
+                }).join('') || '<tr><td colspan="3">No subjects yet</td></tr>'}
+                </tbody></table>
+                <h3 style="margin-top:24px;">Unassigned Files</h3>
+                <table style="margin-top:8px;"><thead><tr><th>Name</th><th>Type</th><th>Action</th></tr></thead><tbody>
+                ${files.filter(f => !f.subjectId).map(f => `<tr><td>${esc(f.name)}</td><td>${esc(f.type)}</td>
+                    <td><button class="btn" onclick="openWizardFromFile(${f.id})">Use</button>
+                    <button class="btn" onclick="assignFileSubject(${f.id})">Assign to Subject</button></td></tr>`).join('') || '<tr><td colspan="3">No unassigned files</td></tr>'}
+                </tbody></table>
+            `;
+        }
+
+        async function createSubject() {
+            const name = prompt('Subject name:');
+            if (name && name.trim()) {
+                await db.subjects.add({ name: name.trim(), date: Date.now() });
+                toast('Subject created');
+                renderSubjects(document.getElementById('mainContent'));
+            }
+        }
+
+        async function renameSubject(id) {
+            const s = await db.subjects.get(id);
+            const newName = prompt('Rename subject:', s.name);
+            if (newName && newName.trim()) {
+                s.name = newName.trim();
+                await db.subjects.put(s);
+                renderSubjects(document.getElementById('mainContent'));
+            }
+        }
+
+        async function deleteSubject(id) {
+            if (confirm('Delete subject? Files will become unassigned but NOT deleted.')) {
+                const files = await db.files.toArray();
+                for (let f of files) {
+                    if (f.subjectId === id) {
+                        f.subjectId = null;
+                        await db.files.put(f);
+                    }
+                }
+                await db.subjects.delete(id);
+                renderSubjects(document.getElementById('mainContent'));
+                toast('Subject deleted');
+            }
+        }
+
+        async function viewSubjectFiles(id) {
+            const files = await db.files.where('subjectId').equals(id).toArray();
+            const s = await db.subjects.get(id);
+            if (!s) return;
+            const content = document.getElementById('mainContent');
+            content.innerHTML = `
+                <h2>Files in Subject: ${esc(s.name)}</h2>
+                <button class="btn" onclick="goTo('subjects')">Back to Subjects</button>
+                <table style="margin-top:16px;"><thead><tr><th>Name</th><th>Type</th><th>Date</th><th>Actions</th></tr></thead><tbody>
+                ${files.map(f => `<tr><td>${esc(f.name)}</td><td>${esc(f.type)}</td><td>${new Date(f.date).toLocaleDateString()}</td>
+                    <td><button class="btn" onclick="openWizardFromFile(${f.id})">Use</button>
+                    <button class="btn" onclick="viewFile(${f.id})">View</button>
+                    <button class="btn danger" onclick="removeFileFromSubject(${f.id})">Unassign</button></td></tr>`).join('') || '<tr><td colspan="4">No files</td></tr>'}
+                </tbody></table>
+            `;
+        }
+
+        async function removeFileFromSubject(id) {
+            const f = await db.files.get(id);
+            if (f) {
+                f.subjectId = null;
+                await db.files.put(f);
+                viewSubjectFiles(f.subjectId || 0); // just reload
+            }
+        }
+
         // ===== PROCESSING =====
         async function renderProcessing(container) {
             const gen = await db.generated.toArray();
@@ -783,15 +945,52 @@ function hideTooltip(el, delay = 0) {
         });
 
         // ===== PDF HELPERS =====
-        async function htmlToPdfBlob(html) { const div=document.createElement('div'); div.innerHTML=html; div.style.width='800px'; div.style.padding='20px'; document.body.appendChild(div); const opt={margin:[0.5,0.5,0.5,0.5],filename:'output.pdf',image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'in',format:'letter',orientation:'portrait'}}; const blob=await html2pdf().set(opt).from(div).outputPdf('blob'); div.remove(); return blob; }
+        async function htmlToPdfBlob(html) {
+    // Inject clean PDF styles (white background, black text, keep colors)
+    const pdfStyle = `
+        <style>
+            body { background: #fff !important; color: #000 !important; }
+            * { background-color: transparent !important; }
+            .cheatsheet-table { background: #fff !important; color: #000 !important; }
+            .cheatsheet-table th { background: #f0f0f0 !important; color: #000 !important; border: 1px solid #ccc !important; }
+            .cheatsheet-table td { background: #fff !important; color: #000 !important; border: 1px solid #ccc !important; }
+            .term { color: #000 !important; }
+            .def, .example, .memory { color: #000 !important; }
+            .diagram-row pre { color: #000 !important; background: #fff !important; }
+            .rounds input[type="checkbox"] { width: 14px !important; height: 14px !important; border: 1px solid #000 !important; background: #fff !important; }
+        </style>
+    `;
+    // Add style before </head> or at start of body
+    html = html.replace('</head>', pdfStyle + '</head>');
+    if (!html.includes('</head>')) html = pdfStyle + html;
+
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    div.style.width = '800px';
+    div.style.padding = '20px';
+    document.body.appendChild(div);
+    const opt = { margin:[0.5,0.5,0.5,0.5], filename:'output.pdf', image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true}, jsPDF:{unit:'in',format:'letter',orientation:'portrait'} };
+    const blob = await html2pdf().set(opt).from(div).outputPdf('blob');
+    div.remove();
+    return blob;
+}
         function downloadBlob(blob, filename) { const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); }
 
         // ===== CHEATSHEET CSS =====
         const cheatsheetCSS = `.cheatsheet-table{width:100%;border-collapse:collapse;font-family:sans-serif;font-size:12px;} .cheatsheet-table th{background:#1e1f2a;color:#2dd4bf;padding:8px;text-align:left;border-bottom:1px solid #333;} .cheatsheet-table td{padding:8px;border-bottom:1px solid #e5e7eb;vertical-align:top;} .term{font-weight:bold;} .def::before{content:"= ";} .example{font-style:italic;} .example::before{content:"e.g. ";} .memory::before{content:"• ";}`;
+        function renderRounds() {
+            return `<div class="rounds" style="font-size:0;">
+                <input type="checkbox" style="width:14px;height:14px;border:1px solid #000;background:#fff;display:inline-block;margin-right:4px;">
+                <input type="checkbox" style="width:14px;height:14px;border:1px solid #000;background:#fff;display:inline-block;margin-right:4px;">
+                <input type="checkbox" style="width:14px;height:14px;border:1px solid #000;background:#fff;display:inline-block;margin-right:4px;">
+                <input type="checkbox" style="width:14px;height:14px;border:1px solid #000;background:#fff;display:inline-block;margin-right:4px;">
+            </div>`;
+        }
+        
         function generateCheatsheetBody(items) {
             let html='<table class="cheatsheet-table"><thead><tr><th>Term</th><th>Definition</th><th>Example</th><th>Memory</th><th>Diagram</th></tr></thead><tbody><tr class="notes-row"><td colspan="5">&nbsp;</td></tr>';
             items.forEach(item=>{
-                html+=`<tr><td><span class="term">▸ ${esc(item.term)}</span></td><td><span class="def">${esc(item.definition||'')}</span></td><td><span class="example">${esc(item.example||'')}</span></td><td><span class="memory">${esc(item.memory||'')}</span></td><td></td></tr>`;
+                html+=`<tr><td><span class="term">▸ ${esc(item.term)}</span></td><td><span class="def">${esc(item.definition||'')}</span>${renderRounds()}</td><td><span class="example">${esc(item.example||'')}</span>${renderRounds()}</td><td><span class="memory">${esc(item.memory||'')}</span>${renderRounds()}</td><td></td></tr>`;
                 html+='<tr class="notes-row"><td colspan="5">&nbsp;</td></tr>';
                 if(item.diagram){ html+='<tr class="diagram-row"><td colspan="5"><pre>'+esc(item.diagram)+'</pre></td></tr>'; html+='<tr class="notes-row"><td colspan="5">&nbsp;</td></tr>'; }
             });
