@@ -186,6 +186,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+    <!-- Add JSZip for PPTX and EPUB processing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Add Tesseract.js v5 for OCR (100+ languages) -->
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <script>
         // ===== DATABASE (Fixed versioning) =====
         const db = new Dexie('PrintMSDB');
@@ -442,7 +446,7 @@ function hideTooltip(el, delay = 0) {
                             </span>
                         </span>
                     </div>
-                    <div id="uploadZone" class="upload-zone"><i class="fas fa-cloud-upload-alt"></i><p>Drag & drop or click</p><input type="file" id="fileInput" accept=".pdf,.txt,.docx,.epub" style="display:none;"></div>
+                    <div id="uploadZone" class="upload-zone"><i class="fas fa-cloud-upload-alt"></i><p>Drag & drop or click</p><input type="file" id="fileInput" accept=".pdf,.txt,.docx,.pptx,.epub,image/*" style="display:none;"></div>
                     <div id="progressArea" style="display:none; margin-top:12px;"><div class="progress"><div id="progressFill" class="progress-fill" style="width:0%"></div></div><div id="progressText">Starting...</div><div id="charCount">Characters: 0</div></div>
                     <div style="margin-top:16px; display:flex; justify-content:space-between; align-items:center;">
                         <button class="btn" onclick="skipWizardStep()">Skip Step</button>
@@ -570,30 +574,128 @@ async function handleWizardFile(file) {
         if(nextBtn) nextBtn.disabled = false;
     } catch(err) { alert('Error: '+err.message); }
 }
+        // ===== TEXT EXTRACTION & OCR =====
         async function extractText(file, onProgress) {
-            if(file.type==='application/pdf'||file.name.endsWith('.pdf')) {
+            const fileName = file.name.toLowerCase();
+
+            // --- PDF Processing with OCR Fallback ---
+            if (fileName.endsWith('.pdf')) {
                 const ab = await file.arrayBuffer();
-                const pdf = await pdfjsLib.getDocument({data:ab}).promise;
-                let t='';
-                for(let i=1;i<=pdf.numPages;i++){ 
-                    const p=await pdf.getPage(i); 
-                    const c=await p.getTextContent(); 
-                    t+=c.items.map(x=>x.str).join(' ')+'\n'; 
-                    if(onProgress) onProgress(`Extracting page ${i}/${pdf.numPages}`, (i/pdf.numPages)*100, t.length);
+                const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+                let t = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const p = await pdf.getPage(i);
+                    const c = await p.getTextContent();
+                    t += c.items.map(x => x.str).join(' ') + '\n';
+                    if (onProgress) onProgress(`Extracting page ${i}/${pdf.numPages}`, (i / pdf.numPages) * 100, t.length);
+                }
+                // If text is too short, trigger OCR on the PDF pages
+                if (t.trim().length < 50) {
+                    if (onProgress) onProgress('Text extraction low. Running OCR...', 85, t.length);
+                    return await runOcr(file, onProgress, 'pdf');
                 }
                 return t.trim();
-            } else if(file.name.endsWith('.txt')) {
-                if(onProgress) onProgress('Reading text...', 50, 0);
+            }
+            // --- Text Files ---
+            else if (fileName.endsWith('.txt')) {
+                if (onProgress) onProgress('Reading text...', 50, 0);
                 const text = await file.text();
-                if(onProgress) onProgress('Text read', 100, text.length);
+                if (onProgress) onProgress('Text read', 100, text.length);
                 return text.trim();
-            } else if(file.name.endsWith('.docx')) { 
-                if(onProgress) onProgress('Converting DOCX...', 40, 0);
-                const ab=await file.arrayBuffer(); 
-                const r=await mammoth.convertToHtml({arrayBuffer:ab}); 
-                if(onProgress) onProgress('DOCX converted', 100, r.value.length);
-                return r.value.replace(/<[^>]*>/g,' ').trim(); 
-            } else return "Unsupported";
+            }
+            // --- DOCX Files ---
+            else if (fileName.endsWith('.docx')) {
+                if (onProgress) onProgress('Converting DOCX...', 40, 0);
+                const ab = await file.arrayBuffer();
+                const r = await mammoth.convertToHtml({ arrayBuffer: ab });
+                if (onProgress) onProgress('DOCX converted', 100, r.value.length);
+                return r.value.replace(/<[^>]*>/g, ' ').trim();
+            }
+            // --- PPTX (PowerPoint) Files (NEW) ---
+            else if (fileName.endsWith('.pptx')) {
+                if (onProgress) onProgress('Opening PPTX (ZIP)...', 20, 0);
+                const zip = await JSZip.loadAsync(file);
+                const slideFolder = zip.folder('ppt/slides');
+                if (!slideFolder) return 'No slides found';
+                const slideFiles = Object.keys(slideFolder.files).filter(name => name.endsWith('.xml')).sort();
+                let fullText = '';
+                for (let i = 0; i < slideFiles.length; i++) {
+                    const slideXml = await slideFolder.files[slideFiles[i]].async('string');
+                    // Convert XML to text by stripping tags (simple approach)
+                    const textContent = slideXml
+                        .replace(/<a:t>([^<]*)<\/a:t>/g, '$1\n') // Extract <a:t> text nodes
+                        .replace(/<[^>]+>/g, ' '); // Strip remaining XML tags
+                    fullText += textContent.trim() + '\n\n';
+                    if (onProgress) onProgress(`Extracting slide ${i+1}/${slideFiles.length}`, ((i+1)/slideFiles.length) * 100, fullText.length);
+                }
+                return fullText.trim();
+            }
+            // --- EPUB Files (NEW) ---
+            else if (fileName.endsWith('.epub')) {
+                if (onProgress) onProgress('Opening EPUB (ZIP)...', 20, 0);
+                const zip = await JSZip.loadAsync(file);
+                let fullText = '';
+                const htmlFiles = Object.keys(zip.files).filter(name => name.endsWith('.html') || name.endsWith('.xhtml'));
+                for (let i = 0; i < htmlFiles.length; i++) {
+                    const content = await zip.files[htmlFiles[i]].async('string');
+                    // Convert HTML to text
+                    const tmpDiv = document.createElement('div');
+                    tmpDiv.innerHTML = content;
+                    fullText += tmpDiv.textContent.trim() + '\n\n';
+                    if (onProgress) onProgress(`Extracting chapter ${i+1}/${htmlFiles.length}`, ((i+1)/htmlFiles.length) * 100, fullText.length);
+                }
+                return fullText.trim() || 'No readable text found in EPUB';
+            }
+            // --- Image Files (NEW) - Direct OCR ---
+            else if (file.type.startsWith('image/') || fileName.endsWith('.png') || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || fileName.endsWith('.webp')) {
+                if (onProgress) onProgress('Running OCR on image...', 10, 0);
+                return await runOcr(file, onProgress, 'image');
+            }
+            else {
+                return "Unsupported format. Please convert to PDF, DOCX, PPTX, TXT, EPUB, or an image file.";
+            }
+        }
+
+        // ===== OCR HELPER FUNCTION =====
+        async function runOcr(file, onProgress, sourceType) {
+            try {
+                if (onProgress) onProgress('Initializing OCR engine...', 20, 0);
+                const worker = await Tesseract.createWorker('eng'); // Add 'eng' for English. Can add more languages.
+                if (onProgress) onProgress('OCR engine loaded. Recognizing text...', 40, 0);
+                let fullText = '';
+
+                if (sourceType === 'pdf') {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    const maxPages = Math.min(pdf.numPages, 10); // Limit to 10 pages to avoid freezing
+                    for (let i = 1; i <= maxPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const viewport = page.getViewport({ scale: 2 }); // 2x scale for better OCR
+                        const canvas = document.createElement('canvas');
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+                        const context = canvas.getContext('2d');
+                        await page.render({ canvasContext: context, viewport: viewport }).promise;
+                        const result = await worker.recognize(canvas);
+                        fullText += result.data.text + '\n\n';
+                        if (onProgress) onProgress(`OCR page ${i}/${maxPages}`, 40 + (i / maxPages) * 60, fullText.length);
+                    }
+                } else {
+                    // For image files
+                    const result = await worker.recognize(file);
+                    fullText = result.data.text;
+                    if (onProgress) onProgress('OCR complete.', 100, fullText.length);
+                }
+
+                await worker.terminate();
+                if (fullText.trim().length < 50) {
+                    return 'OCR did not detect enough text. The file may be blank or image quality is too low.';
+                }
+                return fullText.trim();
+            } catch (error) {
+                console.error('OCR Error:', error);
+                return `OCR failed: ${error.message}`;
+            }
         }
         function selectType(t) { state.wizardData.selectedType = t; document.querySelectorAll('.type-card').forEach(c=>c.classList.remove('selected')); document.querySelector(`.type-card[data-type="${t}"]`)?.classList.add('selected'); }
         function wizardGoToStep2() { state.wizardStep = 2; renderWizardStep(); }
