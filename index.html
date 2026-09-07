@@ -188,6 +188,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
     <!-- Add JSZip for PPTX and EPUB processing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Add pptxtojson library -->
+    <script src="https://cdn.jsdelivr.net/npm/@haywang/pptxtojson@1.2.1/dist/index.min.js"></script>
     <!-- Add Tesseract.js v5 for OCR (100+ languages) -->
     <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <script>
@@ -611,24 +613,38 @@ async function handleWizardFile(file) {
                 if (onProgress) onProgress('DOCX converted', 100, r.value.length);
                 return r.value.replace(/<[^>]*>/g, ' ').trim();
             }
-            // --- PPTX (PowerPoint) Files (NEW) ---
+            // --- PPTX (PowerPoint) Files (FIXED) ---
             else if (fileName.endsWith('.pptx')) {
-                if (onProgress) onProgress('Opening PPTX (ZIP)...', 20, 0);
-                const zip = await JSZip.loadAsync(file);
-                const slideFolder = zip.folder('ppt/slides');
-                if (!slideFolder) return 'No slides found';
-                const slideFiles = Object.keys(slideFolder.files).filter(name => name.endsWith('.xml')).sort();
-                let fullText = '';
-                for (let i = 0; i < slideFiles.length; i++) {
-                    const slideXml = await slideFolder.files[slideFiles[i]].async('string');
-                    // Convert XML to text by stripping tags (simple approach)
-                    const textContent = slideXml
-                        .replace(/<a:t>([^<]*)<\/a:t>/g, '$1\n') // Extract <a:t> text nodes
-                        .replace(/<[^>]+>/g, ' '); // Strip remaining XML tags
-                    fullText += textContent.trim() + '\n\n';
-                    if (onProgress) onProgress(`Extracting slide ${i+1}/${slideFiles.length}`, ((i+1)/slideFiles.length) * 100, fullText.length);
+                if (onProgress) onProgress('Parsing PPTX structure...', 30, 0);
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const jsonData = await pptxtojson.parse(arrayBuffer);
+                    const slides = jsonData.slides || [];
+                    let fullText = '';
+                    for (let i = 0; i < slides.length; i++) {
+                        const slide = slides[i];
+                        const elements = slide.elements || [];
+                        for (const el of elements) {
+                            // Extract text from various element types
+                            if (el.content) {
+                                // Create a temporary div to strip HTML tags and extract text
+                                const tmpDiv = document.createElement('div');
+                                tmpDiv.innerHTML = el.content;
+                                fullText += tmpDiv.textContent.trim() + '\n';
+                            }
+                            if (el.note) {
+                                fullText += 'Speaker Notes: ' + el.note.replace(/<[^>]+>/g, '') + '\n';
+                            }
+                            // Text in tables and other complex elements might need extraction logic
+                        }
+                        fullText += '\n--- Slide ' + (i+1) + ' End ---\n\n';
+                        if (onProgress) onProgress(`Extracting slide ${i+1}/${slides.length}`, ((i+1)/slides.length) * 100, fullText.length);
+                    }
+                    return fullText.trim();
+                } catch (err) {
+                    console.error('PPTX parsing error:', err);
+                    return 'Error parsing PPTX: ' + err.message;
                 }
-                return fullText.trim();
             }
             // --- EPUB Files (NEW) ---
             else if (fileName.endsWith('.epub')) {
