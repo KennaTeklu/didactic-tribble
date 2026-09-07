@@ -188,8 +188,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
     <!-- Add JSZip for PPTX and EPUB processing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <!-- Add pptxtojson library -->
-    <script src="https://cdn.jsdelivr.net/npm/@haywang/pptxtojson@1.2.1/dist/index.min.js"></script>
+    <!-- (Removed pptxtojson – replaced with @pagus-kit/core via dynamic import) -->
     <!-- Add Tesseract.js v5 for OCR (100+ languages) -->
     <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <script>
@@ -218,6 +217,25 @@
 
         // ===== UTILITIES =====
         const esc = s => s.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+
+        // Recursively extract text strings from a Pagus node (object/array)
+        function collectTextFromNode(node, result) {
+            if (!node || typeof node !== 'object') return;
+            if (Array.isArray(node)) {
+                node.forEach(item => collectTextFromNode(item, result));
+                return;
+            }
+            for (const key in node) {
+                const value = node[key];
+                // Look for properties that usually hold slide text
+                if ((key === 'text' || key === 'content' || key === 'value') && typeof value === 'string' && value.trim().length > 0) {
+                    result.push(value);
+                } else {
+                    // Recurse deeper
+                    collectTextFromNode(value, result);
+                }
+            }
+        }
         const flash = color => { const f=document.getElementById('flashOverlay'); f.style.background=color; f.style.opacity='0.9'; setTimeout(()=>f.style.opacity='0',400); };
         const toast = msg => { const d=document.createElement('div'); d.textContent=msg; d.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1e293b;color:white;padding:8px 16px;border-radius:8px;z-index:10000;opacity:0;transition:opacity 0.2s;'; document.body.appendChild(d); setTimeout(()=>d.style.opacity='1',10); setTimeout(()=>{d.style.opacity='0';setTimeout(()=>d.remove(),200);},2000); };
 
@@ -613,33 +631,25 @@ async function handleWizardFile(file) {
                 if (onProgress) onProgress('DOCX converted', 100, r.value.length);
                 return r.value.replace(/<[^>]*>/g, ' ').trim();
             }
-            // --- PPTX (PowerPoint) Files (FIXED) ---
+            // --- PPTX (PowerPoint) Files (NEW – using @pagus-kit/core) ---
             else if (fileName.endsWith('.pptx')) {
                 if (onProgress) onProgress('Parsing PPTX structure...', 30, 0);
                 try {
                     const arrayBuffer = await file.arrayBuffer();
-                    const jsonData = await pptxtojson.parse(arrayBuffer);
-                    const slides = jsonData.slides || [];
+                    // Dynamically import @pagus-kit/core from CDN
+                    const { parse } = await import('https://cdn.jsdelivr.net/npm/@pagus-kit/core/+esm');
+                    const presentation = await parse(arrayBuffer);
+                    const slides = presentation.slides || [];
                     let fullText = '';
                     for (let i = 0; i < slides.length; i++) {
                         const slide = slides[i];
-                        const elements = slide.elements || [];
-                        for (const el of elements) {
-                            // Extract text from various element types
-                            if (el.content) {
-                                // Create a temporary div to strip HTML tags and extract text
-                                const tmpDiv = document.createElement('div');
-                                tmpDiv.innerHTML = el.content;
-                                fullText += tmpDiv.textContent.trim() + '\n';
-                            }
-                            if (el.note) {
-                                fullText += 'Speaker Notes: ' + el.note.replace(/<[^>]+>/g, '') + '\n';
-                            }
-                            // Text in tables and other complex elements might need extraction logic
-                        }
-                        fullText += '\n--- Slide ' + (i+1) + ' End ---\n\n';
+                        // Recursively collect all text snippets from the slide object
+                        const textPieces = [];
+                        collectTextFromNode(slide, textPieces);
+                        fullText += textPieces.join('\n') + '\n\n--- Slide ' + (i+1) + ' End ---\n\n';
                         if (onProgress) onProgress(`Extracting slide ${i+1}/${slides.length}`, ((i+1)/slides.length) * 100, fullText.length);
                     }
+                    if (!fullText.trim()) return 'No text found in this PPTX.';
                     return fullText.trim();
                 } catch (err) {
                     console.error('PPTX parsing error:', err);
