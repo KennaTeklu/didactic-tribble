@@ -218,21 +218,27 @@
         // ===== UTILITIES =====
         const esc = s => s.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
 
-        // Recursively extract text strings from a Pagus node (object/array)
-        function collectTextFromNode(node, result) {
+        // Extract text from Pagus SlideElement structures
+        function extractPagusText(node, result) {
             if (!node || typeof node !== 'object') return;
             if (Array.isArray(node)) {
-                node.forEach(item => collectTextFromNode(item, result));
+                node.forEach(item => extractPagusText(item, result));
                 return;
             }
+            // 1. Check for a direct text property in Paragraph/Run
+            if (typeof node.text === 'string' && node.text.trim().length > 0) {
+                result.push(node.text);
+            }
+            // 2. Check for body/content inside a ShapeElement
+            if (node.body) {
+                extractPagusText(node.body, result);
+            }
+            // 3. Recurse into standard element fields
             for (const key in node) {
+                if (key === 'text' || key === 'body' || key === 'content') continue;
                 const value = node[key];
-                // Look for properties that usually hold slide text
-                if ((key === 'text' || key === 'content' || key === 'value') && typeof value === 'string' && value.trim().length > 0) {
-                    result.push(value);
-                } else {
-                    // Recurse deeper
-                    collectTextFromNode(value, result);
+                if (value && typeof value === 'object') {
+                    extractPagusText(value, result);
                 }
             }
         }
@@ -636,16 +642,14 @@ async function handleWizardFile(file) {
                 if (onProgress) onProgress('Parsing PPTX structure...', 30, 0);
                 try {
                     const arrayBuffer = await file.arrayBuffer();
-                    // Dynamically import @pagus-kit/core from CDN
                     const { parse } = await import('https://cdn.jsdelivr.net/npm/@pagus-kit/core/+esm');
                     const presentation = await parse(arrayBuffer);
                     const slides = presentation.slides || [];
                     let fullText = '';
                     for (let i = 0; i < slides.length; i++) {
                         const slide = slides[i];
-                        // Recursively collect all text snippets from the slide object
                         const textPieces = [];
-                        collectTextFromNode(slide, textPieces);
+                        extractPagusText(slide, textPieces);
                         fullText += textPieces.join('\n') + '\n\n--- Slide ' + (i+1) + ' End ---\n\n';
                         if (onProgress) onProgress(`Extracting slide ${i+1}/${slides.length}`, ((i+1)/slides.length) * 100, fullText.length);
                     }
