@@ -5,13 +5,11 @@
     <title>PPT API Test</title>
 </head>
 <body>
-    <h2>Test PPT Extractor API (with Blob upload)</h2>
+    <h2>Test PPT Extractor API (with Blob upload – manual)</h2>
     <input type="file" id="pptFile" accept=".ppt">
     <button onclick="uploadPPT()">Upload & Extract</button>
     <pre id="output" style="background:#f4f4f4; padding:10px; margin-top:20px; max-height:400px; overflow:auto;"></pre>
 
-    <!-- Load the Blob client library from CDN -->
-    <script src="https://unpkg.com/@vercel/blob/client@0.23.0/dist/index.js"></script>
     <script>
         async function uploadPPT() {
             const fileInput = document.getElementById('pptFile');
@@ -24,15 +22,35 @@
             output.textContent = 'Uploading...';
 
             try {
-                // Call the upload function from the Blob client
-                // It will request a token from our server endpoint automatically
-                const result = await upload(file, {
-                    access: 'private', // or 'public' if you want
-                    handleUploadUrl: 'https://fluffy-succotash-blond.vercel.app/api/upload/token',
-                    clientPayload: JSON.stringify({ name: file.name })
+                // Step 1: Get upload token from your backend
+                const tokenResponse = await fetch('https://fluffy-succotash-blond.vercel.app/api/upload/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        path: file.name, 
+                        clientPayload: JSON.stringify({ name: file.name }) 
+                    })
                 });
+                const tokenData = await tokenResponse.json();
+                if (!tokenData.url) {
+                    throw new Error('No token URL returned: ' + JSON.stringify(tokenData));
+                }
 
-                output.textContent = 'File uploaded successfully! Processing will happen server-side.\nCheck server logs for extracted text.';
+                // Step 2: Upload the file directly to the token URL (PUT request)
+                const putResponse = await fetch(tokenData.url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': file.type || 'application/octet-stream',
+                        'x-vercel-token': tokenData.token,
+                        'x-vercel-file-name': file.name
+                    },
+                    body: file
+                });
+                if (!putResponse.ok) {
+                    throw new Error('Upload failed with status: ' + putResponse.status);
+                }
+
+                output.textContent = 'File uploaded successfully!\nProcessing will happen server-side.\nCheck the Vercel logs for extracted text.';
             } catch (e) {
                 output.textContent = 'Error: ' + e.message;
             }
