@@ -2279,10 +2279,17 @@ async function cycleFlashcardLayout() {
 /* ============================================================
    FLASHCARD HTML BUILDER
    ============================================================ */
+const PAGE_W = 210;  // A4 width in mm
+const PAGE_H = 297;  // A4 height in mm
+const MARGIN = 5;    // mm on each side — safe minimum for most printers
+
 const LAYOUTS = {
-  small:  { cols: 2, rows: 2, w: 95,  h: 138.5 },
-  medium: { cols: 2, rows: 4, w: 95,  h: 69.25 },
-  large:  { cols: 4, rows: 4, w: 47.5, h: 69.25 }
+  small:  { cols: 2, rows: 2, margin: MARGIN,
+            w: (PAGE_W - 2 * MARGIN) / 2, h: (PAGE_H - 2 * MARGIN) / 2 },
+  medium: { cols: 2, rows: 4, margin: MARGIN,
+            w: (PAGE_W - 2 * MARGIN) / 2, h: (PAGE_H - 2 * MARGIN) / 4 },
+  large:  { cols: 4, rows: 4, margin: MARGIN,
+            w: (PAGE_W - 2 * MARGIN) / 4, h: (PAGE_H - 2 * MARGIN) / 4 }
 };
 
 const FC_PALETTES = [
@@ -2374,7 +2381,8 @@ function fcPickSize(text, isFront) {
   return 14;
 }
 function fcCardHTML(card, side, x, y, style, layout, idx) {
-  const pos = 'left:' + x + 'mm;top:' + y + 'mm';
+  const { w, h } = LAYOUTS[layout];
+  const pos = 'left:' + x + 'mm;top:' + y + 'mm;width:' + w + 'mm;height:' + h + 'mm';
   if (!card) return '<div class="card empty ' + side + '" style="' + pos + '"></div>';
   const isFront = side === 'front';
   const text = isFront ? (card.a || '—') : (card.q || '—');
@@ -2409,8 +2417,7 @@ function fcCardHTML(card, side, x, y, style, layout, idx) {
   '</div>';
 }
 function fcSheetHTML(cards, s, total, side, style, layout) {
-  const { cols, rows, w, h } = LAYOUTS[layout];
-  const margin = 10;
+  const { cols, rows, w, h, margin } = LAYOUTS[layout];
   const perSheet = cols * rows;
   const isFront = side === 'front';
   let cells = '';
@@ -2508,12 +2515,14 @@ function buildFlashcardHTML(cards, style, layout) {
     function autofit(el){
       const body = el.parentElement;
       const cs = getComputedStyle(body);
-      const avail = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const availW = body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const availH = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
       let size = parseFloat(el.dataset.size) || 20;
       el.style.fontSize = size + 'px';
       let guard = 0;
-      while (guard++ < 90){
-        if (el.getBoundingClientRect().height <= avail || size <= 7) break;
+      while (guard++ < 200){
+        const r = el.getBoundingClientRect();
+        if ((r.height <= availH && r.width <= availW) || size <= 7) break;
         size -= 1;
         el.style.fontSize = size + 'px';
       }
