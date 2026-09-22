@@ -593,6 +593,17 @@ mark{background:var(--warning);color:#000;padding:1px 3px;border-radius:2px}
 .badge.success{background:var(--success);color:#fff}
 .badge.danger{background:var(--danger);color:#fff}
 .badge.warning{background:var(--warning);color:#000}
+.legal-content h1 { font-size: 1.5rem; margin-bottom: 4px; }
+.legal-content h2 { font-size: 1.125rem; margin-top: 22px; }
+.legal-content h2:first-of-type { margin-top: 16px; }
+.legal-content p { font-size: 14px; line-height: 1.65; color: var(--text); }
+.legal-content p.muted { color: var(--text-dim); }
+.legal-content ul { padding-left: 22px; margin-bottom: 12px; }
+.legal-content li { font-size: 14px; line-height: 1.7; color: var(--text); margin-bottom: 4px; }
+.legal-content code {
+  background: var(--bg); padding: 1px 6px; border-radius: 3px;
+  font-family: monospace; font-size: 12.5px; color: var(--accent);
+}
 </style>
 </head>
 <body>
@@ -638,6 +649,7 @@ mark{background:var(--warning);color:#000;padding:1px 3px;border-radius:2px}
     <div class="menu-item" data-menu="help">Help
       <div class="menu-dropdown">
         <div class="mi" onclick="goTo('help')"><i class="fas fa-question-circle"></i>Help &amp; Docs<span class="shortcut"><span class="kbd">F1</span></span></div>
+        <div class="mi" onclick="goTo('legal')"><i class="fas fa-file-contract"></i>Legal</div>
         <div class="mi" onclick="openModal('aboutModal')"><i class="fas fa-info-circle"></i>About PrintMS</div>
       </div>
     </div>
@@ -683,6 +695,7 @@ mark{background:var(--warning);color:#000;padding:1px 3px;border-radius:2px}
       <div class="tree-item" data-page="editors" onclick="goTo('editors')"><i class="fas fa-edit"></i><span>Editors</span></div>
       <div class="tree-group">System</div>
       <div class="tree-item" data-page="settings" onclick="goTo('settings')"><i class="fas fa-cog"></i><span>Settings</span></div>
+      <div class="tree-item" data-page="legal" onclick="goTo('legal')"><i class="fas fa-file-contract"></i><span>Legal</span></div>
       <div class="tree-item" data-page="help" onclick="goTo('help')"><i class="fas fa-question-circle"></i><span>Help</span></div>
     </aside>
     <main class="content" id="mainContent" tabindex="-1"></main>
@@ -1188,7 +1201,7 @@ function updateBreadcrumbs(page) {
   const names = {
     dashboard:'Dashboard', library:'Library', subjects:'Subjects',
     generated:'Generated', processing:'Processing', automation:'Automation',
-    editors:'Editors', settings:'Settings', help:'Help'
+    editors:'Editors', settings:'Settings', help:'Help', legal:'Legal'
   };
   document.getElementById('currentCrumb').textContent = names[page] || page;
 }
@@ -1206,6 +1219,7 @@ async function renderPage(page) {
     else if (page === 'editors') await renderEditors(c);
     else if (page === 'settings') await renderSettings(c);
     else if (page === 'help') await renderHelp(c);
+    else if (page === 'legal') await renderLegal(c);
   } catch (e) {
     console.error(e);
     c.innerHTML = '<div class="empty"><i class="fas fa-exclamation-triangle"></i>' +
@@ -3405,7 +3419,180 @@ async function setDefault(key, val) {
   await setSetting(key, val);
   showToast('Saved', 'success');
 }
+/* ============================================================
+   LEGAL — Privacy Statement, License & Terms
+   ============================================================ */
+const LEGAL_DOCS = {
+  privacy: {
+    title: 'Privacy Statement',
+    updated: 'September 2026',
+    html: `
+      <h1>Privacy Statement</h1>
+      <p class="muted">Last updated: September 2026</p>
 
+      <div class="card" style="background:var(--panel-light);border-left:4px solid var(--success)">
+        <strong>Short version:</strong> We collect nothing. Everything stays on your device.
+      </div>
+
+      <h2>1. What we collect</h2>
+      <p>Nothing. This application has no server, no accounts, no telemetry, no analytics, no cookies, no tracking, no advertising, and no third-party scripts that identify you. Nothing you upload, create, or generate leaves your browser.</p>
+
+      <h2>2. Where your data lives</h2>
+      <p>Your files, generated content, subjects, tags, and settings are stored in your browser's IndexedDB storage on your own device. We do not have access to any of it. We cannot read it, recover it, or delete it remotely.</p>
+
+      <h2>3. What your browser tells third parties</h2>
+      <p>On first load, your browser downloads a small set of open-source libraries from public CDNs (<code>cdnjs.cloudflare.com</code>, <code>unpkg.com</code>, <code>cdn.jsdelivr.net</code>). Those providers see your IP address, browser user agent, and the requested filenames, exactly as they would for any website. Once cached, no further requests are made — the app works fully offline. We do not control these providers; their own privacy policies apply.</p>
+
+      <h2>4. Cookies</h2>
+      <p>This application sets no cookies.</p>
+
+      <h2>5. Data loss</h2>
+      <p>Your data is only as durable as your browser's storage. Clearing browser data, uninstalling the browser, using private or incognito mode, or a browser bug can delete everything permanently. There is no cloud, so there is no recovery. <strong>Export a backup regularly</strong> from Settings → Data Management.</p>
+
+      <h2>6. Children</h2>
+      <p>This application collects no information from anyone, including children under 13.</p>
+
+      <h2>7. Changes</h2>
+      <p>If this statement changes, the updated version ships with the code and the "Last updated" date above changes.</p>
+
+      <h2>8. Contact</h2>
+      <p>Questions or concerns: <strong>[[ your-contact-email-here ]]</strong></p>
+    `
+  },
+
+  terms: {
+    title: 'License & Terms',
+    updated: 'September 2026',
+    html: `
+      <h1>License &amp; Terms</h1>
+      <p class="muted">Last updated: September 2026</p>
+
+      <h2>1. What this is</h2>
+      <p>PrintMS is a free, open-source, browser-based tool for converting documents into printable study materials. There is no company, no service, no subscription, and no account.</p>
+
+      <h2>2. Your rights</h2>
+      <p>You may use this software for any purpose — personal, educational, or commercial — free of charge. You own all files you upload and all content you create. Nothing you make is licensed to us, because we do not receive it.</p>
+
+      <h2>3. No warranty</h2>
+      <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+
+      <h2>4. Your responsibility</h2>
+      <p>You are responsible for the documents you upload, the content you generate, the backups you keep, and any use you make of the output. Do not upload material you do not have the right to use.</p>
+
+      <h2>5. Third-party software</h2>
+      <p>This application includes the following open-source libraries, each under its own license:</p>
+      <ul>
+        <li><strong>Dexie.js</strong> — MIT License</li>
+        <li><strong>PDF.js</strong> — Apache License 2.0</li>
+        <li><strong>Mammoth.js</strong> — BSD 2-Clause</li>
+        <li><strong>JSZip</strong> — MIT / GPLv3 dual-license</li>
+        <li><strong>Tesseract.js</strong> — Apache License 2.0</li>
+        <li><strong>Font Awesome Free</strong> — Icons: CC BY 4.0; Fonts: SIL OFL 1.1; Code: MIT</li>
+      </ul>
+
+      <h2>6. What this application does NOT do</h2>
+      <p>Stated plainly, because most tools bury this:</p>
+      <ul>
+        <li>No account required, or possible</li>
+        <li>No data sent to any server, ever</li>
+        <li>No analytics, telemetry, or crash reporting</li>
+        <li>No cookies or trackers</li>
+        <li>No advertising</li>
+        <li>No subscription, payment, or upgrade prompt</li>
+        <li>No AI features that call a paid API on your behalf</li>
+        <li>No background sync</li>
+        <li>No reading of your files beyond what is required to extract text locally in your browser</li>
+        <li>No retention of anything after you close the tab, other than your own local data</li>
+        <li>No way for anyone — including us — to see or recover your data</li>
+      </ul>
+      <p>If any of that changes, this document changes first.</p>
+
+      <h2>7. Modifications</h2>
+      <p>You may modify and redistribute the source under the project's license. Do not misrepresent modified versions as the original.</p>
+
+      <h2>8. Contact</h2>
+      <p>Questions or concerns: <strong>[[ support@try4ever.com ]]</strong></p>
+    `
+  }
+};
+
+async function renderLegal(c) {
+  c.innerHTML =
+    '<h1><i class="fas fa-file-contract"></i> Legal</h1>' +
+    '<p class="muted">Two documents, both short, both honest. If you only read one section, read "What this application does NOT do" in the second.</p>' +
+
+    '<div style="display:flex;gap:8px;margin-bottom:16px">' +
+      '<button class="btn primary" onclick="showLegalDoc(\'privacy\')">Privacy Statement</button>' +
+      '<button class="btn" onclick="showLegalDoc(\'terms\')">License &amp; Terms</button>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="detail-row">' +
+        '<span class="k">Privacy Statement</span>' +
+        '<span class="v">What data is collected — spoiler: none. ' +
+          '<button class="btn btn-sm" style="float:right" onclick="showLegalDoc(\'privacy\')">Read</button></span>' +
+      '</div>' +
+      '<div class="detail-row">' +
+        '<span class="k">License &amp; Terms</span>' +
+        '<span class="v">Your rights, our disclaimers, third-party libraries. ' +
+          '<button class="btn btn-sm" style="float:right" onclick="showLegalDoc(\'terms\')">Read</button></span>' +
+      '</div>' +
+      '<div class="detail-row">' +
+        '<span class="k">Third-party libraries</span>' +
+        '<span class="v">This app uses open-source libraries from public CDNs. Details in the License &amp; Terms document.</span>' +
+      '</div>' +
+      '<div class="detail-row">' +
+        '<span class="k">Cookies</span>' +
+        '<span class="v">This application sets none.</span>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card" style="background:var(--panel-light)">' +
+      '<h3 style="margin-top:0">Backups are your responsibility</h3>' +
+      '<p class="muted">There is no cloud. If you clear your browser data, everything is gone. Export a backup regularly.</p>' +
+      '<button class="btn primary" onclick="exportAllData()"><i class="fas fa-download"></i>Export Backup Now</button>' +
+    '</div>';
+}
+
+function showLegalDoc(key) {
+  const doc = LEGAL_DOCS[key];
+  if (!doc) return;
+  const bd = document.createElement('div');
+  bd.className = 'modal-backdrop';
+  bd.style.display = 'flex';
+  bd.innerHTML =
+    '<div class="modal" style="max-width:760px">' +
+      '<div class="modal-header">' +
+        '<h3>' + esc(doc.title) + '</h3>' +
+        '<button class="modal-close" onclick="this.closest(\'.modal-backdrop\').remove()">&times;</button>' +
+      '</div>' +
+      '<div class="modal-body legal-content">' + doc.html + '</div>' +
+      '<div class="modal-footer">' +
+        '<button class="btn" onclick="this.closest(\'.modal-backdrop\').remove()">Close</button>' +
+        '<button class="btn primary" onclick="downloadLegalDoc(\'' + key + '\')"><i class="fas fa-download"></i>Download</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(bd);
+}
+
+function downloadLegalDoc(key) {
+  const doc = LEGAL_DOCS[key];
+  if (!doc) return;
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' +
+    esc(doc.title) + '</title><style>' +
+    'body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;line-height:1.6;color:#222}' +
+    'h1{margin-bottom:4px}h2{margin-top:28px}' +
+    'code{background:#f0f0f0;padding:1px 5px;border-radius:3px}' +
+    '.muted{color:#666}</style></head><body>' +
+    doc.html + '</body></html>';
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'printms-' + key + '.html';
+  a.click();
+  URL.revokeObjectURL(url);
+}
 /* ============================================================
    PAGES — HELP
    ============================================================ */
@@ -3796,6 +3983,7 @@ const CMDS = [
   { cat: 'Navigation', label: 'Go to Editors', shortcut: 'G E', action: () => goTo('editors') },
   { cat: 'Navigation', label: 'Go to Settings', shortcut: 'G S', action: () => goTo('settings') },
   { cat: 'Navigation', label: 'Go to Help', action: () => goTo('help') },
+  { cat: 'Navigation', label: 'Go to Legal', action: () => goTo('legal') },
   { cat: 'Actions', label: 'New Wizard', shortcut: 'Ctrl+N', action: () => openWizard() },
   { cat: 'Actions', label: 'Cycle Theme', shortcut: 'Ctrl+Shift+L', action: () => cycleTheme() },
   { cat: 'Actions', label: 'Export All Data (JSON)', action: () => exportAllData() },
